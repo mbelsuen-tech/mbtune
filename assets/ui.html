@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MBTune</title>
+<style>
+:root{
+  --black:#000; --strip:#131315; --raised:#1d1d21; --line:#2a2a30;
+  --red:#e3101c; --red-deep:#7a0710; --text:#f4f4f5; --muted:#8b8b93;
+  --ok:#34d27b; --warn:#ffb020;
+  --font:"Bahnschrift","DIN Alternate","Avenir Next","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--black);color:var(--text);font-family:var(--font);
+  -webkit-font-smoothing:antialiased;user-select:none}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible,select:focus-visible,.knob:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+/* cabecera */
+header{display:flex;align-items:center;gap:18px;white-space:nowrap;padding:14px 28px;border-bottom:1px solid var(--line)}
+header img{height:70px}
+.brand h1{margin:0;font-size:34px;font-weight:700;letter-spacing:-.5px}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.grow{flex:1}
+.status{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:15px;text-align:right}
+.status .dot{width:12px;height:12px;border-radius:50%;background:#444}
+.status.on{color:var(--text)} .status.on .dot{background:var(--ok);box-shadow:0 0 12px var(--ok)}
+.status small{display:block;color:var(--muted);font-size:13px}
+.start{height:60px;min-width:190px;padding:0 28px;border-radius:16px;background:var(--red);
+  font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;
+  box-shadow:0 8px 28px rgba(227,16,28,.35);transition:transform .1s,background .2s}
+.start:active{transform:scale(.97)}
+.start.running{background:var(--raised);box-shadow:inset 0 0 0 2px var(--red)}
+
+/* barra de audio */
+.audio{display:grid;grid-template-columns:minmax(200px,1.3fr) minmax(200px,1.3fr) auto auto auto;gap:16px;align-items:end;padding:16px 28px}
+.field label{display:block;color:var(--muted);font-size:13px;margin:0 0 6px 2px}
+select{width:100%;height:50px;border-radius:12px;background:var(--strip);color:var(--text);
+  border:1px solid var(--line);padding:0 34px 0 12px;font:inherit;font-size:14px;text-overflow:ellipsis;appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 22px) 22px,calc(100% - 16px) 22px;background-size:6px 6px;background-repeat:no-repeat}
+.seg{display:flex;background:var(--strip);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+.seg button{height:40px;min-width:46px;padding:0 8px;border-radius:9px;color:var(--muted);font-size:15px}
+.seg button.sel{background:var(--raised);color:var(--text);box-shadow:inset 0 -2px 0 var(--red)}
+
+/* canales */
+main{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:6px 28px 28px}
+.ch{background:var(--strip);border:1px solid var(--line);border-radius:26px;padding:20px 22px 22px}
+.ch.off{opacity:.45}
+.ch-head{display:flex;align-items:center;gap:12px}
+.ch-head h2{margin:0;font-size:24px;font-weight:700;flex:1}
+.toggle{height:48px;padding:0 18px;border-radius:14px;background:var(--raised);font-size:16px;
+  display:flex;align-items:center;gap:9px;color:var(--muted)}
+.toggle i{width:10px;height:10px;border-radius:50%;background:#444}
+.toggle.on{color:var(--text)} .toggle.on i{background:var(--red);box-shadow:0 0 10px var(--red)}
+.toggle.bp.on i{background:var(--warn);box-shadow:0 0 10px var(--warn)}
+
+.tuner{position:relative;margin:4px auto 0;max-width:360px}
+.tuner svg{display:block;width:100%}
+.needle{transition:transform .09s linear;transform-origin:160px 168px}
+.tuner .target{text-align:center;color:var(--muted);font-size:15px;margin-top:-4px;height:20px}
+.level{height:6px;border-radius:3px;background:var(--raised);overflow:hidden;margin:10px 0 16px}
+.level b{display:block;height:100%;width:0;border-radius:4px;
+  background:linear-gradient(90deg,var(--ok) 0 70%,var(--warn) 85%,var(--red));background-size:100% 100%;transition:width .07s}
+
+.routing{display:flex;gap:18px;margin-bottom:18px}
+.stepper{flex:1;display:flex;align-items:center;gap:8px;background:var(--black);border-radius:16px;padding:6px}
+.stepper span{color:var(--muted);font-size:14px;padding-left:10px;flex:1}
+.stepper strong{min-width:44px;text-align:center;font-size:26px;font-variant-numeric:tabular-nums}
+.stepper button{width:50px;height:50px;border-radius:12px;background:var(--raised);font-size:26px;line-height:1}
+.stepper button:active{background:var(--red-deep)}
+
+.label{color:var(--muted);font-size:14px;margin:0 0 8px 2px}
+.tonality{display:flex;align-items:baseline;gap:12px;margin:2px 0 10px 2px}
+.tonality strong{font-size:28px;font-weight:700;color:var(--text)}
+.tonality span{color:var(--muted);font-size:14px}
+.tonality .custom{display:none;margin-left:auto;align-self:center;height:36px;padding:0 14px;border-radius:10px;
+  background:var(--raised);color:var(--warn);font-size:14px}
+.tonality.is-custom .custom{display:block}
+.roots{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;margin-bottom:8px}
+.roots button{height:46px;border-radius:10px;background:var(--raised);font-size:14px;font-weight:600;color:var(--muted);padding:0}
+.roots button.sel{background:var(--red);color:#fff}
+.hint{color:var(--muted);font-size:13px;margin:-2px 0 8px 2px}
+.keys{position:relative;height:104px;margin-bottom:16px}
+.keys button{position:absolute;bottom:0;border-radius:0 0 12px 12px;font-size:14px;font-weight:600;
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px}
+.keys .w{top:0;background:#e9e9ec;color:#222;border:2px solid var(--strip)}
+.keys .b{top:0;height:60px;z-index:2;background:#45454e;color:#fff;font-size:12px;border:2px solid var(--strip);padding-bottom:6px}
+.keys button.root{background:var(--red);color:#fff}
+.keys button .in{position:absolute;top:8px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:var(--red)}
+.keys button.root .in{background:#fff}
+.keys .b .in{top:6px}
+.keys .w.out{background:#7d7d84;color:#2a2a2e}
+.keys .b.out{background:#121214;color:#4a4a50}
+
+.scales{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.scales button{height:44px!important}
+.scales button{height:46px;border-radius:12px;background:var(--raised);font-size:15px;color:var(--muted)}
+.scales button.sel{background:var(--red);color:#fff}
+
+.dials{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dial{background:var(--black);border-radius:20px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px 14px}
+.dial .chips{grid-column:1/-1;margin-top:6px}
+.dial .chips{flex-wrap:nowrap}
+.dial .chips button{flex:1;padding:0 6px;font-size:13px}
+.knob{width:104px;height:104px;flex:none;cursor:ns-resize;touch-action:none;border-radius:50%}
+.dial h3{margin:0 0 4px;font-size:16px;font-weight:600}
+.dial p{margin:0 0 10px;color:var(--muted);font-size:13px;line-height:1.35}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{height:38px;padding:0 12px;border-radius:10px;background:var(--raised);font-size:14px;color:var(--muted)}
+.chips button.sel{color:var(--text);box-shadow:inset 0 0 0 2px var(--red)}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,140%);max-width:720px;
+  background:#2a0a0d;border:1px solid var(--red);color:var(--text);padding:14px 20px;border-radius:14px;
+  font-size:15px;transition:transform .25s,opacity .25s;opacity:0;pointer-events:none}
+.toast.show{transform:translate(-50%,0);opacity:1;pointer-events:auto}
+
+/* canciones */
+.songs{margin:0 28px 16px;background:var(--strip);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.save{display:flex;gap:10px;align-items:center}
+.save input{flex:1;max-width:420px;height:50px;border-radius:12px;background:var(--black);border:1px solid var(--line);
+  color:var(--text);font:inherit;font-size:16px;padding:0 14px;user-select:text}
+.save input:focus{outline:2px solid var(--red);outline-offset:1px}
+.btn{height:50px;padding:0 20px;border-radius:12px;background:var(--raised);font-size:16px;font-weight:600}
+.btn.red{background:var(--red);color:#fff}
+.dirty{color:var(--warn);font-size:14px}
+.list{display:flex;flex-wrap:wrap;gap:8px}
+.list .empty{color:var(--muted);font-size:14px;padding:6px 2px}
+.song{display:flex;align-items:center;background:var(--raised);border-radius:12px;overflow:hidden}
+.song button{height:46px;padding:0 14px;font-size:15px;color:var(--muted)}
+.song .load{color:var(--text)}
+.song.sel{background:var(--red)} .song.sel button{color:#fff}
+.song .tool{padding:0 11px;border-left:1px solid rgba(255,255,255,.18)}
+.song .tool.confirm{background:#000;color:var(--warn)!important}
+.live-btn{height:60px;padding:0 22px;border-radius:16px;background:var(--raised);font-size:17px;font-weight:600}
+.live-btn.on{box-shadow:inset 0 0 0 2px var(--text)}
+
+/* modo directo */
+#live{padding:20px 28px 36px}
+.live-now{text-align:center;padding:10px 0 22px}
+.live-now small{color:var(--muted);font-size:16px}
+.live-now h2{margin:6px 0 8px;font-size:64px;font-weight:700;line-height:1.05;letter-spacing:-1px}
+.live-now p{margin:0;color:var(--muted);font-size:18px;display:flex;justify-content:center;gap:36px;flex-wrap:wrap}
+.live-nav{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+.live-nav button{height:110px;border-radius:22px;background:var(--raised);font-size:28px;font-weight:700}
+.live-nav button:last-child{background:var(--red);color:#fff}
+.live-nav button:disabled{opacity:.3;cursor:default}
+.live-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.live-grid button{min-height:96px;border-radius:18px;background:var(--strip);border:1px solid var(--line);text-align:left;padding:14px 18px;display:flex;gap:14px;align-items:center}
+.live-grid button b{font-size:26px;color:var(--muted);min-width:34px;font-variant-numeric:tabular-nums}
+.live-grid button span{display:block;font-size:20px;font-weight:700}
+.live-grid button small{display:block;color:var(--muted);font-size:13px;margin-top:4px;line-height:1.35}
+.live-grid button.sel{background:var(--red);border-color:var(--red)} .live-grid button.sel b,.live-grid button.sel small{color:#fff}
+.live-empty{text-align:center;color:var(--muted);font-size:18px;padding:60px 20px;line-height:1.5}
+.live-hint{text-align:center;color:var(--muted);font-size:14px;margin-top:22px}
+body.is-live .audio,body.is-live #songs,body.is-live main{display:none}
+body:not(.is-live) #live{display:none}
+
+@media (max-width:1060px){main{grid-template-columns:1fr}.audio{grid-template-columns:1fr 1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <img src="logo_header.png" alt="MB Soundtools">
+  <div class="brand"><h1>MBTune</h1><p>Autotune en tiempo real para dos voces</p></div>
+  <div class="grow"></div>
+  <div class="status" id="status"><div><span id="statusText">Detenido</span><small id="statusSub">Elige tu tarjeta y pulsa Iniciar</small></div><span class="dot"></span></div>
+  <button class="live-btn" id="liveBtn">Modo directo</button>
+  <button class="start" id="startBtn">▶ Iniciar</button>
+</header>
+
+<section class="audio">
+  <div class="field"><label for="inDev">Entrada de audio</label><select id="inDev"></select></div>
+  <div class="field"><label for="outDev">Salida de audio</label><select id="outDev"></select></div>
+  <div class="field"><label>Frecuencia</label><div class="seg" data-audio="sr"></div></div>
+  <div class="field"><label>Buffer</label><div class="seg" data-audio="bs"></div></div>
+  <div class="field"><label>Ventana (ms)</label><div class="seg" data-audio="win"></div></div>
+</section>
+
+<section class="songs" id="songs">
+  <div class="save"><input id="songName" placeholder="Nombre de la canción" maxlength="60">
+    <button class="btn red" id="saveBtn">Guardar canción</button><span class="dirty" id="dirty"></span></div>
+  <div class="list" id="songList"></div>
+</section>
+
+<main id="channels"></main>
+
+<section id="live">
+  <div class="live-now"><small id="liveNum"></small><h2 id="liveName"></h2><p id="liveSum"></p></div>
+  <div class="live-nav"><button id="prevBtn">◀ Anterior</button><button id="nextBtn">Siguiente ▶</button></div>
+  <div class="live-grid" id="liveGrid"></div>
+  <p class="live-hint">También puedes cambiar de canción con las flechas ← → del teclado o con un pedal que envíe Re Pág / Av Pág.</p>
+</section>
+<div class="toast" id="toast"></div>
+
+<script>
+const NOTES=["Do","Do♯","Re","Mi♭","Mi","Fa","Fa♯","Sol","La♭","La","Si♭","Si"];
+const MODE_NAMES={"Cromática":"cromática","Mayor":"mayor","Menor natural":"menor","Menor armónica":"menor armónica","Pentatónica mayor":"pentatónica mayor","Pentatónica menor":"pentatónica menor"};
+const SCALES=[["Cromática","Cromática",[0,1,2,3,4,5,6,7,8,9,10,11]],["Mayor","Mayor",[0,2,4,5,7,9,11]],
+  ["Menor natural","Menor",[0,2,3,5,7,8,10]],["Menor armónica","Armónica",[0,2,3,5,7,8,11]],
+  ["Pentatónica mayor","Penta mayor",[0,2,4,7,9]],["Pentatónica menor","Penta menor",[0,3,5,7,10]]];
+const AUDIO_OPTS={sr:[[44100,"44,1k"],[48000,"48k"],[96000,"96k"]],bs:[[64,"64"],[128,"128"],[256,"256"],[512,"512"]],
+  win:[[10,"10"],[15,"15"],[20,"20"],[30,"30"]]};
+const SPEED_PRESETS=[[0,"Robot"],[15,"Rápido"],[50,"Natural"]];
+let api, cfg, running=false, live=false, presets={presets:[],current:null}, dirty=false;
+const $=s=>document.querySelector(s);
+
+/* ---------- utilidades ---------- */
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),6000)}
+function polar(cx,cy,r,deg){const a=(deg-90)*Math.PI/180;return[cx+r*Math.cos(a),cy+r*Math.sin(a)]}
+function arc(cx,cy,r,a0,a1){const[x0,y0]=polar(cx,cy,r,a0),[x1,y1]=polar(cx,cy,r,a1);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`}
+
+/* ---------- afinador ---------- */
+function tunerSVG(){
+  const c2a=c=>c/50*80;  // ±50 cents -> ±80°
+  let ticks="";
+  for(let c=-50;c<=50;c+=5){const big=c%25===0,[x0,y0]=polar(160,168,big?122:128,c2a(c)),[x1,y1]=polar(160,168,138,c2a(c));
+    ticks+=`<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${c===0?'#f4f4f5':'#55555c'}" stroke-width="${big?3:1.5}" stroke-linecap="round"/>`}
+  return `<svg viewBox="0 0 320 190">
+    <path d="${arc(160,168,146,-80,80)}" stroke="#232328" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="${arc(160,168,146,c2a(-30),c2a(30))}" stroke="#4a3a12" stroke-width="10" fill="none"/>
+    <path d="${arc(160,168,146,c2a(-10),c2a(10))}" stroke="#1d5a38" stroke-width="10" fill="none"/>
+    <path class="glow" d="${arc(160,168,146,-1,1)}" stroke="var(--ok)" stroke-width="10" fill="none" stroke-linecap="round" opacity="0"/>
+    ${ticks}
+    <g class="needle"><path d="M160 12 L151 2 L169 2 Z" fill="var(--red)"/><line x1="160" y1="14" x2="160" y2="48" stroke="var(--red)" stroke-width="4" stroke-linecap="round"/></g>
+    <text class="note" x="160" y="132" text-anchor="middle" font-size="54" font-weight="700" fill="#f4f4f5">–</text>
+    <text class="cents" x="160" y="160" text-anchor="middle" font-size="16" fill="#8b8b93">Sin señal</text>
+  </svg><div class="target"></div>`;
+}
+function updateTuner(el,st){
+  const note=el.querySelector(".note"),cents=el.querySelector(".cents"),needle=el.querySelector(".needle"),
+        glow=el.querySelector(".glow"),target=el.querySelector(".target");
+  if(!st||st.note==null){note.textContent="–";note.setAttribute("fill","#55555c");cents.textContent="Sin señal";
+    needle.style.transform="rotate(0deg)";glow.setAttribute("opacity",0);target.textContent="";return}
+  const c=Math.max(-50,Math.min(50,st.cents)),a=Math.abs(c),col=a<10?"var(--ok)":a<30?"var(--warn)":"var(--red)";
+  note.textContent=st.note;note.setAttribute("fill","#f4f4f5");
+  cents.textContent=(c>0?"+":"")+Math.round(c)+" cents";cents.setAttribute("fill",a<10?"#34d27b":"#8b8b93");
+  needle.style.transform=`rotate(${c/50*80}deg)`;
+  const ang=c/50*80;glow.setAttribute("d",arc(160,168,146,Math.min(0,ang)-1,Math.max(0,ang)+1));
+  glow.setAttribute("stroke",col);glow.setAttribute("opacity",1);
+  target.textContent=a<1?`Afinado en ${st.target}`:`Corrigiendo a ${st.target}`;
+}
+
+/* ---------- teclado de tonalidad ---------- */
+function keysHTML(){
+  const whites=[0,2,4,5,7,9,11],blacks=[[1,0],[3,1],[6,3],[8,4],[10,5]],W=100/7;let h="";
+  whites.forEach((n,i)=>h+=`<button class="w" data-k="${n}" style="left:${i*W}%;width:${W}%" aria-label="${NOTES[n]}"><span class="in"></span>${NOTES[n]}</button>`);
+  blacks.forEach(([n,after])=>h+=`<button class="b" data-k="${n}" style="left:${(after+1)*W-W*0.32}%;width:${W*0.64}%" aria-label="${NOTES[n]}"><span class="in"></span>${NOTES[n]}</button>`);
+  return h;
+}
+const scaleOf=ch=>SCALES.find(s=>s[0]===ch.scale)||SCALES[0];
+function autoNotes(ch){const m=Array(12).fill(0);scaleOf(ch)[2].forEach(i=>m[(ch.key+i)%12]=1);return m}
+const activeNotes=ch=>ch.notes||autoNotes(ch);
+function paintKeys(card,ch){
+  const act=activeNotes(ch),chrom=ch.scale==="Cromática"&&!ch.notes;
+  const t=card.querySelector(".tonality");t.classList.toggle("is-custom",!!ch.notes);
+  t.querySelector("strong").textContent=chrom?"Cromática":`${NOTES[ch.key]} ${MODE_NAMES[ch.scale]}`;
+  t.querySelector("span").textContent=ch.notes?`${act.filter(Boolean).length} notas elegidas a mano`:chrom?"Corrige a todas las notas":`${act.filter(Boolean).length} notas`;
+  card.querySelectorAll(".roots button").forEach(b=>b.classList.toggle("sel",+b.dataset.r===ch.key&&!chrom));
+  card.querySelectorAll(".keys button").forEach(b=>{const k=+b.dataset.k,inScale=!!act[k];
+    b.classList.toggle("root",k===ch.key&&!chrom&&inScale);b.classList.toggle("out",!inScale);b.querySelector(".in").style.display=inScale?"":"none"});
+}
+
+/* ---------- potenciómetro ---------- */
+function makeKnob(el,{min,max,value,unit,fmt,onChange,def}){
+  let v=value;
+  function draw(){const t=(v-min)/(max-min),a=-135+270*t;
+    el.innerHTML=`<svg viewBox="0 0 112 112"><path d="${arc(56,56,46,-135,135)}" stroke="#26262b" stroke-width="9" fill="none" stroke-linecap="round"/>
+    ${t>0.002?`<path d="${arc(56,56,46,-135,a)}" stroke="var(--red)" stroke-width="9" fill="none" stroke-linecap="round"/>`:""}
+    <circle cx="56" cy="56" r="34" fill="#1d1d21"/>
+    <line x1="${polar(56,56,20,a)[0]}" y1="${polar(56,56,20,a)[1]}" x2="${polar(56,56,31,a)[0]}" y2="${polar(56,56,31,a)[1]}" stroke="#f4f4f5" stroke-width="3" stroke-linecap="round"/>
+    <text x="56" y="60" text-anchor="middle" font-size="17" font-weight="700" fill="#f4f4f5">${fmt(v)}</text>
+    <text x="56" y="76" text-anchor="middle" font-size="10" fill="#8b8b93">${unit}</text></svg>`}
+  function set(nv,emit=true){v=Math.round(Math.max(min,Math.min(max,nv)));draw();if(emit)onChange(v)}
+  el.tabIndex=0;el.setAttribute("role","slider");
+  let y0=null,v0;
+  el.addEventListener("pointerdown",e=>{y0=e.clientY;v0=v;el.setPointerCapture(e.pointerId)});
+  el.addEventListener("pointermove",e=>{if(y0!==null)set(v0+(y0-e.clientY)*(max-min)/180)});
+  el.addEventListener("pointerup",()=>y0=null);
+  el.addEventListener("wheel",e=>{e.preventDefault();set(v+(e.deltaY<0?1:-1)*Math.max(1,(max-min)/50))},{passive:false});
+  el.addEventListener("keydown",e=>{if(e.key==="ArrowUp"||e.key==="ArrowRight")set(v+1);if(e.key==="ArrowDown"||e.key==="ArrowLeft")set(v-1)});
+  el.addEventListener("dblclick",()=>set(def));
+  draw();return{set};
+}
+
+/* ---------- canal ---------- */
+function buildChannel(i){
+  const ch=cfg.channels[i],card=document.createElement("section");card.className="ch";
+  card.innerHTML=`<div class="ch-head"><h2>Voz ${i+1}</h2>
+      <button class="toggle en"><i></i>Activo</button><button class="toggle bp"><i></i>Bypass</button></div>
+    <div class="tuner">${tunerSVG()}</div>
+    <div class="level"><b></b></div>
+    <div class="routing">
+      <div class="stepper" data-p="in_ch"><span>Entrada</span><button aria-label="Menos">−</button><strong></strong><button aria-label="Más">+</button></div>
+      <div class="stepper" data-p="out_ch"><span>Salida</span><button aria-label="Menos">−</button><strong></strong><button aria-label="Más">+</button></div></div>
+    <div class="tonality"><strong></strong><span></span><button class="custom">Volver a la tonalidad</button></div>
+    <div class="roots">${NOTES.map((n,i)=>`<button data-r="${i}">${n}</button>`).join("")}</div>
+    <div class="scales">${SCALES.map(s=>`<button data-s="${s[0]}">${s[1]}</button>`).join("")}</div>
+    <div class="label">Notas a las que corrige</div>
+    <div class="hint">Se eligen solas con la tonalidad. Toca una tecla para quitarla o añadirla.</div>
+    <div class="keys">${keysHTML()}</div>
+    <div class="dials">
+      <div class="dial"><div class="knob kspeed"></div><div><h3>Velocidad</h3><p>Tiempo hasta llegar a la nota</p></div>
+        <div class="chips">${SPEED_PRESETS.map(p=>`<button data-v="${p[0]}">${p[1]}</button>`).join("")}</div></div>
+      <div class="dial"><div class="knob kamount"></div><div><h3>Intensidad</h3><p>Cuánto se corrige la voz</p></div>
+        <div class="chips">${[[50,"Suave"],[80,"Media"],[100,"Total"]].map(p=>`<button data-a="${p[0]}">${p[1]}</button>`).join("")}</div></div>
+    </div>`;
+  const send=(name,val)=>{ch[name]=val;api.set_param(i,name,val);setDirty(true)};
+  const paintScales=()=>card.querySelectorAll(".scales button").forEach(b=>b.classList.toggle("sel",b.dataset.s===ch.scale));
+  const en=card.querySelector(".en"),bp=card.querySelector(".bp");
+  const paintToggles=()=>{en.classList.toggle("on",ch.enabled);bp.classList.toggle("on",ch.bypass);card.classList.toggle("off",!ch.enabled)};
+  en.onclick=()=>{send("enabled",!ch.enabled);paintToggles()};
+  bp.onclick=()=>{send("bypass",!ch.bypass);paintToggles()};
+  card.querySelectorAll(".stepper").forEach(st=>{const p=st.dataset.p,out=st.querySelector("strong"),[minus,plus]=st.querySelectorAll("button");
+    const paint=()=>out.textContent=ch[p];
+    minus.onclick=()=>{send(p,Math.max(1,ch[p]-1));paint()};plus.onclick=()=>{send(p,Math.min(64,ch[p]+1));paint()};paint()});
+  card.querySelectorAll(".roots button").forEach(b=>b.onclick=()=>{
+    if(ch.scale==="Cromática"){send("scale","Mayor");paintScales()}
+    send("key",+b.dataset.r);send("notes",null);paintKeys(card,ch)});
+  card.querySelectorAll(".keys button").forEach(b=>b.onclick=()=>{
+    const m=activeNotes(ch).slice(),k=+b.dataset.k;m[k]=m[k]?0:1;
+    if(!m.some(Boolean))return toast("Deja al menos una nota activa");
+    send("notes",m.join()===autoNotes(ch).join()?null:m);paintKeys(card,ch)});
+  card.querySelector(".tonality .custom").onclick=()=>{send("notes",null);paintKeys(card,ch)};
+  card.querySelectorAll(".scales button").forEach(b=>b.onclick=()=>{send("scale",b.dataset.s);send("notes",null);paintScales();paintKeys(card,ch)});
+  const chips=card.querySelectorAll("[data-v]");
+  const paintChips=()=>chips.forEach(b=>b.classList.toggle("sel",+b.dataset.v===Math.round(ch.speed_ms)));
+  const speed=makeKnob(card.querySelector(".kspeed"),{min:0,max:200,value:ch.speed_ms,unit:"ms",def:20,
+    fmt:v=>v===0?"Robot":v,onChange:v=>{send("speed_ms",v);paintChips()}});
+  chips.forEach(b=>b.onclick=()=>speed.set(+b.dataset.v));
+  const achips=card.querySelectorAll("[data-a]");
+  const paintA=()=>achips.forEach(b=>b.classList.toggle("sel",+b.dataset.a===Math.round(ch.amount*100)));
+  const amount=makeKnob(card.querySelector(".kamount"),{min:0,max:100,value:Math.round(ch.amount*100),unit:"%",def:100,
+    fmt:v=>v,onChange:v=>{send("amount",v/100);paintA()}});
+  achips.forEach(b=>b.onclick=()=>amount.set(+b.dataset.a));paintA();
+  paintToggles();paintScales();paintKeys(card,ch);paintChips();
+  return card;
+}
+
+/* ---------- audio ---------- */
+function fillDevices(dev){
+  if(dev.error)toast(dev.error);
+  const fill=(sel,list,cur)=>{sel.innerHTML=list.length?list.map(d=>`<option value="${d.key}">${d.name} (${d.api})</option>`).join(""):`<option value="">No se encontró ninguna tarjeta</option>`;
+    if(list.some(d=>d.key===cur))sel.value=cur};
+  fill($("#inDev"),dev.inputs,cfg.audio.in);fill($("#outDev"),dev.outputs,cfg.audio.out);
+  cfg.audio.in=$("#inDev").value;cfg.audio.out=$("#outDev").value;
+}
+function buildSegs(){
+  document.querySelectorAll(".seg").forEach(seg=>{const k=seg.dataset.audio;
+    seg.innerHTML=AUDIO_OPTS[k].map(([v,l])=>`<button data-v="${v}">${l}</button>`).join("");
+    const paint=()=>seg.querySelectorAll("button").forEach(b=>b.classList.toggle("sel",+b.dataset.v===+cfg.audio[k]));
+    seg.querySelectorAll("button").forEach(b=>b.onclick=()=>{cfg.audio[k]=+b.dataset.v;paint();audioChanged()});paint()});
+}
+async function audioChanged(){
+  cfg.audio.in=$("#inDev").value;cfg.audio.out=$("#outDev").value;
+  await api.set_audio(cfg.audio);
+  if(running)await start();
+}
+function setRunning(r,info){
+  running=r;const b=$("#startBtn");b.classList.toggle("running",r);b.textContent=r?"■ Detener":"▶ Iniciar";
+  $("#status").classList.toggle("on",r);$("#statusText").textContent=r?"En marcha":"Detenido";
+  $("#statusSub").textContent=r?`${info.latency} ms de latencia`:"Elige tu tarjeta y pulsa Iniciar";
+}
+async function start(){
+  const res=await api.start(cfg.audio);
+  if(res.ok)setRunning(true,res);else{setRunning(false);toast(res.msg)}
+}
+let polling=false;
+async function poll(){
+  if(polling)return;polling=true;
+  try{await pollOnce()}finally{polling=false}
+  setTimeout(poll,live?1000:70);
+}
+async function pollOnce(){
+  if(live){  // en modo directo no se dibujan afinadores: solo se vigilan errores
+    try{const s=await api.get_state();if(s.error)toast("Error de audio: "+s.error)}catch(e){}
+    return}
+  try{const s=await api.get_state();
+    document.querySelectorAll(".ch").forEach((card,i)=>{const st=s.channels[i];updateTuner(card.querySelector(".tuner"),st);
+      const db=st&&st.level>0?20*Math.log10(st.level):-80;card.querySelector(".level b").style.width=Math.max(0,Math.min(100,(db+60)/60*100))+"%"});
+    if(s.error)toast("Error de audio: "+s.error);
+  }catch(e){}
+}
+async function init(){
+  cfg=await api.get_config();
+  fillDevices(await api.get_devices());
+  buildSegs();
+  $("#inDev").onchange=$("#outDev").onchange=audioChanged;
+  renderChannels();
+  presets=await api.get_presets();renderSongs();
+  $("#saveBtn").onclick=saveSong;
+  $("#songName").onkeydown=e=>{if(e.key==="Enter")saveSong()};
+  $("#liveBtn").onclick=()=>setLive(!live);
+  $("#prevBtn").onclick=()=>step(-1);$("#nextBtn").onclick=()=>step(1);
+  document.addEventListener("keydown",e=>{
+    if(!live||e.target.tagName==="INPUT")return;
+    if(["ArrowRight","PageDown"," "].includes(e.key)){e.preventDefault();step(1)}
+    if(["ArrowLeft","PageUp"].includes(e.key)){e.preventDefault();step(-1)}
+    if(/^[1-9]$/.test(e.key))applySong(+e.key-1)});
+  $("#startBtn").onclick=async()=>{if(running){await api.stop();setRunning(false)}else await start()};
+  poll();
+}
+
+/* ---------- canciones y modo directo ---------- */
+function renderChannels(){const main=$("#channels");main.innerHTML="";cfg.channels.forEach((_,i)=>main.appendChild(buildChannel(i)))}
+function tonalityName(c){
+  if(!c.enabled)return"apagada";
+  let t=c.scale==="Cromática"&&!c.notes?"cromática":`${NOTES[c.key]} ${MODE_NAMES[c.scale]}`;
+  if(c.notes)t+=", notas a mano";if(c.bypass)t+=", en bypass";return t}
+const summary=p=>p.channels.map((c,i)=>`Voz ${i+1}: ${tonalityName(c)}`);
+function setDirty(v){dirty=v;const cur=presets.presets[presets.current];
+  $("#dirty").textContent=v&&cur?`Cambios sin guardar en ${cur.name}`:""}
+function renderSongs(){
+  const list=$("#songList"),P=presets.presets;
+  if(!P.length){list.innerHTML=`<span class="empty">Ajusta las voces para una canción, ponle nombre y pulsa Guardar canción. Aparecerá aquí y en el modo directo.</span>`;}
+  else list.innerHTML=P.map((p,i)=>`<div class="song ${i===presets.current?"sel":""}" data-i="${i}">
+      <button class="load">${i+1}. ${esc(p.name)}</button>
+      ${i===presets.current?`<button class="tool" data-a="left" aria-label="Mover antes">◀</button><button class="tool" data-a="right" aria-label="Mover después">▶</button>`:""}
+      <button class="tool" data-a="del" aria-label="Borrar">✕</button></div>`).join("");
+  list.querySelectorAll(".song").forEach(el=>{const i=+el.dataset.i;
+    el.querySelector(".load").onclick=()=>applySong(i);
+    el.querySelectorAll(".tool").forEach(t=>t.onclick=async()=>{
+      if(t.dataset.a==="del"){
+        if(!t.classList.contains("confirm")){t.classList.add("confirm");t.textContent="¿Borrar?";setTimeout(()=>{t.classList.remove("confirm");t.textContent="✕"},3000);return}
+        presets=await api.delete_preset(i)}
+      else presets=await api.move_preset(i,t.dataset.a==="left"?-1:1);
+      renderSongs();renderLive();setDirty(dirty)})});
+  renderLive();
+}
+function renderLive(){
+  const P=presets.presets,c=presets.current,cur=P[c];
+  $("#liveNum").textContent=cur?`Canción ${c+1} de ${P.length}`:"";
+  $("#liveName").textContent=cur?cur.name:(P.length?"Elige una canción":"");
+  $("#liveSum").innerHTML=cur?summary(cur).map(t=>`<span>${t}</span>`).join(""):"";
+  $("#prevBtn").disabled=!P.length||c===0;$("#nextBtn").disabled=!P.length||c===P.length-1;
+  $("#liveGrid").innerHTML=P.length?P.map((p,i)=>`<button class="${i===c?"sel":""}" data-i="${i}"><b>${i+1}</b><div><span>${esc(p.name)}</span><small>${summary(p).join("<br>")}</small></div></button>`).join("")
+    :`<div class="live-empty">Todavía no hay canciones guardadas.<br>Pulsa Volver a ajustes, prepara las voces y pulsa Guardar canción.</div>`;
+  $("#liveGrid").querySelectorAll("button").forEach(b=>b.onclick=()=>applySong(+b.dataset.i));
+}
+async function saveSong(){
+  const name=$("#songName").value.trim()||(presets.presets[presets.current]||{}).name||"";
+  const r=await api.save_preset(name);
+  if(!r.ok)return toast(r.msg);
+  presets=r;$("#songName").value="";renderSongs();setDirty(false);toast(`Guardada: ${presets.presets[presets.current].name}`);
+}
+async function applySong(i){
+  if(i<0||i>=presets.presets.length)return;
+  const r=await api.apply_preset(i);if(!r.ok)return toast(r.msg);
+  cfg.channels=r.config.channels;presets=r;renderChannels();renderSongs();setDirty(false);
+}
+const step=d=>{const c=presets.current;applySong(c==null?0:c+d)};
+function setLive(v){live=v;document.body.classList.toggle("is-live",v);
+  $("#liveBtn").classList.toggle("on",v);$("#liveBtn").textContent=v?"Volver a ajustes":"Modo directo";
+  renderLive();scrollTo(0,0)}
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- modo demostración (abrir ui.html?demo en un navegador) ---------- */
+function DemoApi(){
+  const c={audio:{in:"ASIO::WING USB Audio",out:"ASIO::WING USB Audio",sr:48000,bs:128,win:20},
+    channels:[{enabled:true,bypass:false,in_ch:1,out_ch:1,key:9,scale:"Menor natural",speed_ms:15,amount:1},
+              {enabled:true,bypass:false,in_ch:2,out_ch:2,key:4,scale:"Mayor",speed_ms:50,amount:.8,notes:[0,1,0,0,1,0,1,0,1,1,0,1]}]};
+  const d={inputs:[{key:"ASIO::WING USB Audio",name:"WING USB Audio",api:"ASIO",channels:48}],
+           outputs:[{key:"ASIO::WING USB Audio",name:"WING USB Audio",api:"ASIO",channels:48}]};
+  let t=0;const P=v=>Promise.resolve(v);
+  const mk=(n,k1,s1,k2,s2,extra={})=>({name:n,channels:[{enabled:true,bypass:false,key:k1,scale:s1,speed_ms:15,amount:1,notes:null},
+    {enabled:true,bypass:false,key:k2,scale:s2,speed_ms:50,amount:.8,notes:null,...extra}]});
+  const pr={presets:[mk("Intro",11,"Menor natural",11,"Menor natural"),mk("Noche de verano",2,"Mayor",2,"Mayor"),
+    mk("Balada lenta",9,"Menor armónica",9,"Menor armónica"),mk("Ritmo latino",0,"Mayor",0,"Mayor"),
+    mk("Te sigo esperando",9,"Menor natural",4,"Mayor",{notes:[0,1,0,0,1,0,1,0,1,1,0,1]}),mk("Final",2,"Menor natural",2,"Pentatónica menor")],current:1};
+  const info=()=>({ok:true,presets:pr.presets,current:pr.current});
+  return{get_presets:()=>P(info()),
+    save_preset:n=>{if(!n)return P({ok:false,msg:"Escribe un nombre para guardar la canción."});
+      const d={name:n,channels:JSON.parse(JSON.stringify(c.channels))};const i=pr.presets.findIndex(p=>p.name.toLowerCase()===n.toLowerCase());
+      if(i>=0){pr.presets[i]=d;pr.current=i}else{pr.presets.push(d);pr.current=pr.presets.length-1}return P(info())},
+    apply_preset:i=>{pr.current=i;pr.presets[i].channels.forEach((x,j)=>Object.assign(c.channels[j],x));return P({...info(),config:JSON.parse(JSON.stringify(c))})},
+    delete_preset:i=>{pr.presets.splice(i,1);if(pr.current===i)pr.current=null;else if(pr.current>i)pr.current--;return P(info())},
+    move_preset:(i,d)=>{const j=i+d;if(j>=0&&j<pr.presets.length){[pr.presets[i],pr.presets[j]]=[pr.presets[j],pr.presets[i]];if(pr.current===i)pr.current=j;else if(pr.current===j)pr.current=i}return P(info())},get_config:()=>P(c),get_devices:()=>P(d),set_param:()=>P(),set_audio:()=>P(),
+    start:()=>P({ok:true,latency:16.4,nin:48,nout:48}),stop:()=>P({ok:true}),
+    get_state:()=>{t+=.07;return P({running:true,channels:[
+      {note:"La4",target:"La4",cents:6+4*Math.sin(t*3),level:.35},
+      {note:"Sol♯4",target:"Sol♯4",cents:-24+5*Math.sin(t*2),level:.2}]})}};
+}
+function boot(a){api=a;init().then(()=>{if(location.search.includes("demo"))start()})}
+if(location.search.includes("demo"))boot(DemoApi());
+else if(window.pywebview&&window.pywebview.api)boot(window.pywebview.api);
+else window.addEventListener("pywebviewready",()=>boot(window.pywebview.api),{once:true});
+</script>
+</body>
+</html>
