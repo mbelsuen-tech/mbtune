@@ -72,18 +72,28 @@ class YinDetector:
         self.nfft = 1 << int(math.ceil(math.log2(2 * self.N)))
         self.taus = np.arange(self.tau_max + 2)
 
-    def detect(self, x):
-        """x: últimas N muestras. Devuelve frecuencia (Hz) o 0 si no hay tono."""
-        X = np.fft.rfft(x, self.nfft)
-        Y = np.fft.rfft(x[: self.W], self.nfft)
-        corr = np.fft.irfft(np.conj(Y) * X, self.nfft)[: self.tau_max + 2]
+    def detect(self, x, tau_max=None):
+        """x: últimas muestras (al menos N). Devuelve frecuencia (Hz) o 0 si no hay tono.
+
+        tau_max permite analizar una ventana más corta (y por tanto más reciente)
+        cuando ya se conoce aproximadamente la nota: menos retraso en la corrección.
+        """
+        tmax = self.tau_max if tau_max is None else int(max(self.tau_min + 4, min(self.tau_max, tau_max)))
+        N = 2 * tmax + 2
+        x = x[-N:]
+        W = N - tmax - 1
+        nfft = 1 << int(math.ceil(math.log2(2 * N)))
+        taus = np.arange(tmax + 2)
+        X = np.fft.rfft(x, nfft)
+        Y = np.fft.rfft(x[:W], nfft)
+        corr = np.fft.irfft(np.conj(Y) * X, nfft)[: tmax + 2]
         e = np.concatenate(([0.0], np.cumsum(x * x)))
-        d = e[self.W] + (e[self.taus + self.W] - e[self.taus]) - 2.0 * corr
+        d = e[W] + (e[taus + W] - e[taus]) - 2.0 * corr
         d[0] = 0.0
         cmnd = np.ones_like(d)
-        cmnd[1:] = d[1:] * self.taus[1:] / np.maximum(np.cumsum(d[1:]), 1e-12)
+        cmnd[1:] = d[1:] * taus[1:] / np.maximum(np.cumsum(d[1:]), 1e-12)
 
-        search = cmnd[self.tau_min: self.tau_max + 1]
+        search = cmnd[self.tau_min: tmax + 1]
         # umbral relativo al mínimo global: evita confundir un armónico fuerte
         # (típico en vocales abiertas como la "a") con la nota real
         thr = min(self.threshold, float(search.min()) + 0.06)
@@ -91,7 +101,7 @@ class YinDetector:
         if below.size == 0:
             return 0.0
         t = int(below[0]) + self.tau_min
-        while t + 1 <= self.tau_max and cmnd[t + 1] < cmnd[t]:
+        while t + 1 <= tmax and cmnd[t + 1] < cmnd[t]:
             t += 1
         a, b, c = cmnd[t - 1], cmnd[t], cmnd[t + 1]
         den = a - 2 * b + c
@@ -110,7 +120,7 @@ class PitchShifter:
     """
 
     def __init__(self, sr, window_ms=20.0, fade_ms=4.0):
-        self.W = max(64, int(sr * window_ms / 1000.0))
+        self.W = max(32, int(sr * window_ms / 1000.0))   # "Mín" = solo lo que exige el periodo de la voz
         self.B = 1 << int(math.ceil(math.log2(self.W * 4 + sr // 20)))
         self.buf = np.zeros(self.B)
         self.w = 0
@@ -205,6 +215,10 @@ class TuneChannel:
         self.hist = np.zeros(self.detector.N)
         self.cur_semi = 0.0
         self.last_note = None
+        self.hop = int(sr * 0.004)      # se detecta la nota cada 4 ms aunque el buffer sea menor
+        self._since = self.hop
+        self._f0 = 0.0
+        self._target = 0.0
 
     def allowed_notes(self):
         """Notas (0=Do..11=Si) a las que se corrige: las de la tonalidad o las elegidas a mano."""
@@ -228,21 +242,32 @@ class TuneChannel:
         N = self.detector.N
         self.level = max(float(np.max(np.abs(x))), self.level * 0.85)
         self.hist = np.concatenate((self.hist, x))[-N:]
-        target = 0.0
-        f0 = 0.0
-        if np.sqrt(np.mean(self.hist[-1024:] ** 2)) > self.gate:
-            f0 = self.detector.detect(self.hist)
-        if f0 > 0:
-            midi = 69.0 + 12.0 * math.log2(f0 / 440.0)
-            note = self.nearest_note(midi)
-            self.last_note = note
-            self.detected_midi = midi
-            self.target_note = note
-            target = (note - midi) * self.amount
-        else:
-            self.last_note = None
-            self.detected_midi = None
-            self.target_note = None
+        self._since += n
+        if self._since >= self.hop:     # con buffers pequeños no se analiza en cada bloque
+            self._since = 0
+            f0 = 0.0
+            if np.sqrt(np.mean(self.hist[-1024:] ** 2)) > self.gate:
+                if self._f0 > 0:
+                    # ya hay nota: ventana corta (≈1,7 periodos), más reciente → menos retraso
+                    f0 = self.detector.detect(self.hist, 1.7 * self.sr / self._f0)
+                    if f0 <= 0 or abs(math.log2(f0 / self._f0)) > 0.25:
+                        f0 = self.detector.detect(self.hist)   # salto grande: análisis completo
+                else:
+                    f0 = self.detector.detect(self.hist)
+            if f0 > 0:
+                midi = 69.0 + 12.0 * math.log2(f0 / 440.0)
+                note = self.nearest_note(midi)
+                self.last_note = note
+                self.detected_midi = midi
+                self.target_note = note
+                self._target = (note - midi) * self.amount
+            else:
+                self.last_note = None
+                self.detected_midi = None
+                self.target_note = None
+                self._target = 0.0
+            self._f0 = f0
+        f0, target = self._f0, self._target
         if self.speed_ms <= 0:
             alpha = 1.0
         else:
@@ -272,7 +297,7 @@ class Engine:
 
     def __init__(self):
         self.channels = [TuneChannel("Voz 1", 1, 1), TuneChannel("Voz 2", 2, 2)]
-        self.audio = {"in": "", "out": "", "sr": 48000, "bs": 256, "win": 20}
+        self.audio = {"in": "", "out": "", "sr": 48000, "bs": 64, "win": 1}
         self.stream = None
         self.error = None
         self.in_peaks = np.zeros(0)  # nivel de cada entrada de la tarjeta (diagnóstico)
@@ -346,13 +371,18 @@ class Engine:
             for ch in self.channels:
                 ch.setup(sr, win)
             self.stream = sd.Stream(device=(in_dev, out_dev), samplerate=sr, blocksize=bs,
-                                    dtype="float32", channels=(nin, nout), latency="low",
+                                    dtype="float32", channels=(nin, nout), latency=bs / sr,
                                     callback=self._callback)
             self.stream.start()
             lat_in, lat_out = self.stream.latency
             self.save()
+            # retardo medio del afinador: la mitad del recorrido del cabezal
+            # (como mínimo un periodo de una voz de ~150 Hz más los márgenes)
+            sh = self.channels[0].shifter
+            span = max(sh.W, sh.lo + sr / 150.0 + 2 * sh.margin + 1)
+            proc_ms = (sh.lo + sh.margin + span) / 2 / sr * 1000
             return {"ok": True, "nin": nin, "nout": nout,
-                    "latency": round((lat_in + lat_out) * 1000 + win / 2, 1)}
+                    "latency": round((lat_in + lat_out) * 1000 + proc_ms, 1)}
         except Exception as e:
             self.stream = None
             return {"ok": False, "msg": f"No se pudo abrir el audio: {e}. "

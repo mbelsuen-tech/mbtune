@@ -35,7 +35,7 @@ header img{height:70px}
 
 /* barra de audio */
 .rescan{height:50px;padding:0 14px;white-space:nowrap;border-radius:12px;background:var(--raised);font-size:15px}
-.audio{gap:12px!important;display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) auto auto auto auto;gap:16px;align-items:end;padding:16px 28px}
+.audio{gap:12px!important;display:grid;grid-template-columns:minmax(140px,1fr) minmax(140px,1fr) auto auto auto auto auto;gap:16px;align-items:end;padding:16px 28px}
 .field label{display:block;color:var(--muted);font-size:13px;margin:0 0 6px 2px}
 select{width:100%;height:50px;border-radius:12px;background:var(--strip);color:var(--text);
   border:1px solid var(--line);padding:0 34px 0 12px;font:inherit;font-size:14px;text-overflow:ellipsis;appearance:none;
@@ -192,9 +192,10 @@ body.is-live .inputs{display:none!important}
   <div class="field"><label for="inDev">Entrada de audio</label><select id="inDev"></select></div>
   <div class="field"><label for="outDev">Salida de audio</label><select id="outDev"></select></div>
   <div class="field"><label>&nbsp;</label><button class="rescan" id="rescanBtn" title="Busca de nuevo las tarjetas conectadas">↻ Buscar</button></div>
+  <div class="field"><label>&nbsp;</label><button class="rescan" id="resetIO" title="Voz 1: entrada 1 y salida 1. Voz 2: entrada 2 y salida 2. Salida por la misma tarjeta que la entrada.">1→1  2→2</button></div>
   <div class="field"><label>Frecuencia</label><div class="seg" data-audio="sr"></div></div>
   <div class="field"><label>Buffer</label><div class="seg" data-audio="bs"></div></div>
-  <div class="field"><label>Ventana (ms)</label><div class="seg" data-audio="win"></div></div>
+  <div class="field"><label title="Recorrido del afinador. Mín = la menor latencia posible">Ventana (ms)</label><div class="seg" data-audio="win"></div></div>
 </section>
 
 <section class="inputs" id="inputs">
@@ -225,8 +226,8 @@ const MODE_NAMES={"Cromática":"cromática","Mayor":"mayor","Menor natural":"men
 const SCALES=[["Cromática","Cromática",[0,1,2,3,4,5,6,7,8,9,10,11]],["Mayor","Mayor",[0,2,4,5,7,9,11]],
   ["Menor natural","Menor",[0,2,3,5,7,8,10]],["Menor armónica","Armónica",[0,2,3,5,7,8,11]],
   ["Pentatónica mayor","Penta mayor",[0,2,4,7,9]],["Pentatónica menor","Penta menor",[0,3,5,7,10]]];
-const AUDIO_OPTS={sr:[[44100,"44,1k"],[48000,"48k"],[96000,"96k"]],bs:[[64,"64"],[128,"128"],[256,"256"],[512,"512"]],
-  win:[[10,"10"],[15,"15"],[20,"20"],[30,"30"]]};
+const AUDIO_OPTS={sr:[[44100,"44,1k"],[48000,"48k"],[96000,"96k"]],bs:[[32,"32"],[64,"64"],[128,"128"],[256,"256"]],
+  win:[[1,"Mín"],[5,"5"],[10,"10"],[20,"20"]]};
 const SPEED_PRESETS=[[0,"Robot"],[15,"Rápido"],[50,"Natural"]];
 let api, cfg, running=false, live=false, presets={presets:[],current:null}, dirty=false;
 const $=s=>document.querySelector(s);
@@ -344,7 +345,11 @@ function buildChannel(i){
       // Si entrada y salida van juntas (1→1, 2→2…), al mover la entrada la salida la sigue
       const linked=p==="in_ch"&&ch.in_ch===ch.out_ch,v=Math.max(1,Math.min(64,ch[p]+d));
       send(p,v);if(linked)send("out_ch",v);card.querySelectorAll(".stepper strong").forEach((o,j)=>o.textContent=ch[j?"out_ch":"in_ch"])};
-    minus.onclick=()=>change(-1);plus.onclick=()=>change(1);paint()});
+    minus.onclick=()=>change(-1);plus.onclick=()=>change(1);
+    out.title="Toca para escribir el número";out.style.cursor="text";
+    out.onclick=()=>{const v=prompt(`Número de ${p==="in_ch"?"entrada":"salida"} para Voz ${i+1}`,ch[p]);
+      const n=parseInt(v,10);if(n>=1&&n<=64)change(n-ch[p])};
+    paint()});
   card.querySelectorAll(".roots button").forEach(b=>b.onclick=()=>{
     if(ch.scale==="Cromática"){send("scale","Mayor");paintScales()}
     send("key",+b.dataset.r);send("notes",null);paintKeys(card,ch)});
@@ -445,6 +450,10 @@ async function init(){
   fillDevices(await api.get_devices());
   buildSegs();
   $("#inDev").onchange=$("#outDev").onchange=audioChanged;
+  $("#resetIO").onclick=async()=>{
+    cfg.channels.forEach((c,i)=>{c.in_ch=c.out_ch=i+1;api.set_param(i,"in_ch",i+1);api.set_param(i,"out_ch",i+1)});
+    const inKey=$("#inDev").value;if([...$("#outDev").options].some(o=>o.value===inKey))$("#outDev").value=inKey;
+    renderChannels();await audioChanged();toast("Listo: Voz 1 → entrada 1 y salida 1, Voz 2 → entrada 2 y salida 2, por la misma tarjeta.")};
   $("#rescanBtn").onclick=async()=>{
     if(running)return toast("Pulsa Detener antes de buscar tarjetas.");
     const d=await api.get_devices(true);fillDevices(d);await api.set_audio(cfg.audio);
@@ -519,8 +528,8 @@ const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 
 /* ---------- modo demostración (abrir ui.html?demo en un navegador) ---------- */
 function DemoApi(){
-  const c={audio:{in:"ASIO::WING USB Audio",out:"ASIO::WING USB Audio",sr:48000,bs:128,win:20},
-    channels:[{enabled:true,bypass:false,in_ch:1,out_ch:1,key:9,scale:"Menor natural",speed_ms:15,amount:1},
+  const c={audio:{in:"ASIO::WING USB Audio",out:"ASIO::WING USB Audio",sr:48000,bs:32,win:1},
+    channels:[{enabled:true,bypass:false,in_ch:1,out_ch:5,key:9,scale:"Menor natural",speed_ms:15,amount:1},
               {enabled:true,bypass:false,in_ch:2,out_ch:2,key:4,scale:"Mayor",speed_ms:50,amount:.8,notes:[0,1,0,0,1,0,1,0,1,1,0,1]}]};
   if(location.search.includes("auto"))c.audio.in=c.audio.out="";
   const d={inputs:[{key:"Core Audio::Micrófono del MacBook Pro",name:"Micrófono del MacBook Pro",api:"Core Audio",channels:1},{key:"ASIO::WING USB Audio",name:"WING USB Audio",api:"ASIO",channels:48}],
@@ -539,7 +548,7 @@ function DemoApi(){
     apply_preset:i=>{pr.current=i;pr.presets[i].channels.forEach((x,j)=>Object.assign(c.channels[j],x));return P({...info(),config:JSON.parse(JSON.stringify(c))})},
     delete_preset:i=>{pr.presets.splice(i,1);if(pr.current===i)pr.current=null;else if(pr.current>i)pr.current--;return P(info())},
     move_preset:(i,d)=>{const j=i+d;if(j>=0&&j<pr.presets.length){[pr.presets[i],pr.presets[j]]=[pr.presets[j],pr.presets[i]];if(pr.current===i)pr.current=j;else if(pr.current===j)pr.current=i}return P(info())},get_config:()=>P(c),get_devices:()=>P(d),set_param:()=>P(),set_audio:()=>P(),
-    start:()=>P({ok:true,latency:16.4,nin:48,nout:48}),stop:()=>P({ok:true}),
+    start:()=>P({ok:true,latency:6.1,nin:48,nout:48}),stop:()=>P({ok:true}),
     get_state:()=>{t+=.07;return P({running:true,inputs:Array.from({length:48},(_,i)=>i===4?.3+.1*Math.sin(t*4):i===5?.12:0),channels:[
       {note:"La4",target:"La4",cents:6+4*Math.sin(t*3),level:.35},
       {note:"Sol♯4",target:"Sol♯4",cents:-24+5*Math.sin(t*2),level:.2}]})}};
