@@ -59,7 +59,7 @@ main{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:6px 28px 28px}
 
 .tuner{position:relative;margin:4px auto 0;max-width:360px}
 .tuner svg{display:block;width:100%}
-.needle{transition:transform .09s linear;transform-origin:160px 168px}
+.needle{transition:transform .09s linear;transform-origin:150px 138px}
 .tuner .target{text-align:center;color:var(--muted);font-size:15px;margin-top:-4px;height:20px}
 .level{height:6px;border-radius:3px;background:var(--raised);overflow:hidden;margin:10px 0 16px}
 .level b{display:block;height:100%;width:0;border-radius:4px;
@@ -104,6 +104,8 @@ main{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:6px 28px 28px}
 .dial{background:var(--black);border-radius:20px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px 14px}
 .dial .chips{grid-column:1/-1;margin-top:6px}
 .dial .chips{flex-wrap:nowrap}
+.style-card{grid-template-columns:1fr!important}
+.style-card .chips{margin-top:2px}
 .dial .chips button{flex:1;padding:0 6px;font-size:13px}
 .knob{width:104px;height:104px;flex:none;cursor:ns-resize;touch-action:none;border-radius:50%}
 .dial h3{margin:0 0 4px;font-size:16px;font-weight:600}
@@ -176,6 +178,67 @@ body.is-live .inputs{display:none!important}
 
 @media (max-width:1060px){main{grid-template-columns:1fr}.audio{grid-template-columns:1fr 1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ===== Tema MB Soundtools: aspecto de equipo de estudio ===== */
+:root{--panel:linear-gradient(180deg,#19191c 0%,#111113 100%);--panel-2:linear-gradient(180deg,#141416 0%,#0c0c0e 100%);
+  --btn:linear-gradient(180deg,#26262a 0%,#18181b 100%);--btn-red:linear-gradient(180deg,#ef2430 0%,#b80c16 100%);
+  --edge:#2b2b30;--hi:inset 0 1px 0 rgba(255,255,255,.06);--glow:0 0 14px rgba(227,16,28,.55)}
+html{background:#050505}
+body{background:radial-gradient(1200px 700px at 50% -10%,#1c1013 0%,#08080a 55%,#050505 100%) no-repeat #050505;min-height:100vh}
+header{margin:10px 14px 0;border:1px solid var(--edge);border-radius:16px;background:var(--panel);box-shadow:var(--hi),0 10px 30px rgba(0,0,0,.5);
+  position:relative;overflow:hidden}
+header::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--red);box-shadow:0 0 18px var(--red)}
+.brand h1{font-size:40px;letter-spacing:-.5px;background:linear-gradient(180deg,#fff 0%,#c9c9cf 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.start{border-radius:12px;background:var(--btn-red);box-shadow:var(--hi),0 8px 26px rgba(227,16,28,.35)}
+.start.running{background:var(--panel-2);box-shadow:inset 0 0 0 2px var(--red),0 0 22px rgba(227,16,28,.35)}
+.live-btn,.rescan,.btn:not(.red){background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi)}
+.btn.red{background:var(--btn-red);box-shadow:var(--hi),var(--glow)}
+.audio{margin:10px 14px 0;border:1px solid var(--edge);border-radius:16px;background:var(--panel);box-shadow:var(--hi);padding:14px 18px}
+select{background-color:#0b0b0d;border-color:var(--edge);box-shadow:inset 0 2px 4px rgba(0,0,0,.6)}
+.seg{background:#0b0b0d;border-color:var(--edge);box-shadow:inset 0 2px 4px rgba(0,0,0,.6)}
+.seg button.sel{background:linear-gradient(180deg,#2a1214 0%,#1a0b0c 100%);box-shadow:inset 0 0 0 1px var(--red),0 0 10px rgba(227,16,28,.35);color:#fff}
+.inputs,.songs{margin:10px 14px 0;border-color:var(--edge);background:var(--panel);box-shadow:var(--hi)}
+.song{background:var(--btn);border:1px solid var(--edge)}
+.song.sel{background:var(--btn-red);box-shadow:var(--glow)}
+main{padding:12px 14px 20px;gap:14px}
+.ch{background:var(--panel);border:1px solid var(--edge);border-radius:18px;box-shadow:var(--hi),0 14px 40px rgba(0,0,0,.55);padding:18px 18px 18px}
+.ch-head h2,.tonality strong{position:relative;padding-left:14px}
+.ch-head h2::before,.tonality strong::before{content:"";position:absolute;left:0;top:12%;bottom:12%;width:4px;border-radius:2px;background:var(--red);box-shadow:0 0 10px var(--red)}
+.ch-head h2{font-size:28px}
+.toggle{background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi);border-radius:10px;height:44px}
+.toggle.on{color:#fff}
+
+/* zona superior: afinador + potenciómetros */
+.ch-top{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;align-items:center;margin:6px 0 4px}
+.tuner{max-width:none;margin:0}
+.tuner .target{margin-top:-6px;font-size:14px}
+.knobs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kcard{background:var(--panel-2);border:1px solid var(--edge);border-radius:14px;box-shadow:var(--hi);padding:12px 8px 10px;text-align:center}
+.kcard h3{margin:0 0 6px;font-size:15px;font-weight:600}
+.kcard .knob{width:96px;height:110px;margin:0 auto}
+header img{mix-blend-mode:lighten}
+.kcard .ends{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;padding:0 6px;margin-top:2px}
+.level{height:5px;background:#0b0b0d;margin:12px 0 14px;box-shadow:inset 0 1px 2px rgba(0,0,0,.7)}
+.level b{background:linear-gradient(90deg,#8a0710,var(--red) 70%,#ff5a3c);box-shadow:0 0 10px var(--red)}
+
+.stepper{background:#0b0b0d;border:1px solid var(--edge);box-shadow:inset 0 2px 4px rgba(0,0,0,.6);border-radius:14px}
+.stepper button{background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi);border-radius:10px}
+.tonality .custom{background:transparent;color:var(--red);box-shadow:inset 0 0 0 1px rgba(227,16,28,.6)}
+.roots button,.scales button{background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi)}
+.roots button.sel,.scales button.sel{background:var(--btn-red);border-color:#ff3b45;color:#fff;box-shadow:var(--hi),var(--glow)}
+.keys .w{background:linear-gradient(180deg,#f2f2f4 0%,#d4d4d8 100%)}
+.keys .w.out{background:linear-gradient(180deg,#8a8a90 0%,#6c6c72 100%)}
+.keys .b{background:linear-gradient(180deg,#4a4a52 0%,#2c2c32 100%)}
+.keys button.root{background:linear-gradient(180deg,#ef2430 0%,#a80a13 100%)!important;color:#fff;box-shadow:0 0 16px rgba(227,16,28,.6)}
+.dial{background:var(--panel-2);border:1px solid var(--edge);box-shadow:var(--hi);border-radius:16px}
+.chips button{background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi)}
+.chips button.sel{box-shadow:inset 0 0 0 2px var(--red),0 0 10px rgba(227,16,28,.4);color:#fff}
+.live-nav button{background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi)}
+.live-nav button:last-child{background:var(--btn-red);box-shadow:var(--hi),var(--glow)}
+.live-grid button{background:var(--panel);border-color:var(--edge);box-shadow:var(--hi)}
+.live-grid button.sel{background:var(--btn-red);box-shadow:var(--glow)}
+.cell{background:#0b0b0d}
+@media (max-width:1180px){.ch-top{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -228,7 +291,7 @@ const SCALES=[["Cromática","Cromática",[0,1,2,3,4,5,6,7,8,9,10,11]],["Mayor","
   ["Pentatónica mayor","Penta mayor",[0,2,4,7,9]],["Pentatónica menor","Penta menor",[0,3,5,7,10]]];
 const AUDIO_OPTS={sr:[[44100,"44,1k"],[48000,"48k"],[96000,"96k"]],bs:[[32,"32"],[64,"64"],[128,"128"],[256,"256"]],
   win:[[1,"Mín"],[5,"5"],[10,"10"],[20,"20"]]};
-const SPEED_PRESETS=[[0,"Robot"],[15,"Rápido"],[50,"Natural"]];
+const SPEED_PRESETS=[[0,"Robot",0],[15,"Rápido",20],[50,"Natural",60]];
 let api, cfg, running=false, live=false, presets={presets:[],current:null}, dirty=false;
 const $=s=>document.querySelector(s);
 
@@ -239,33 +302,43 @@ function arc(cx,cy,r,a0,a1){const[x0,y0]=polar(cx,cy,r,a0),[x1,y1]=polar(cx,cy,r
   return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`}
 
 /* ---------- afinador ---------- */
+const T_SWEEP=135;  // ±50 cents -> ±135°
 function tunerSVG(){
-  const c2a=c=>c/50*80;  // ±50 cents -> ±80°
-  let ticks="";
-  for(let c=-50;c<=50;c+=5){const big=c%25===0,[x0,y0]=polar(160,168,big?122:128,c2a(c)),[x1,y1]=polar(160,168,138,c2a(c));
-    ticks+=`<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${c===0?'#f4f4f5':'#55555c'}" stroke-width="${big?3:1.5}" stroke-linecap="round"/>`}
-  return `<svg viewBox="0 0 320 190">
-    <path d="${arc(160,168,146,-80,80)}" stroke="#232328" stroke-width="10" fill="none" stroke-linecap="round"/>
-    <path d="${arc(160,168,146,c2a(-30),c2a(30))}" stroke="#4a3a12" stroke-width="10" fill="none"/>
-    <path d="${arc(160,168,146,c2a(-10),c2a(10))}" stroke="#1d5a38" stroke-width="10" fill="none"/>
-    <path class="glow" d="${arc(160,168,146,-1,1)}" stroke="var(--ok)" stroke-width="10" fill="none" stroke-linecap="round" opacity="0"/>
+  const c2a=c=>c/50*T_SWEEP;let ticks="";
+  for(let c=-50;c<=50;c+=2.5){const big=c%25===0,mid=c%10===0,[x0,y0]=polar(150,138,big?112:mid?116:119,c2a(c)),[x1,y1]=polar(150,138,125,c2a(c));
+    ticks+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${c===0?'#f4f4f5':big?'#9a9aa2':'#4a4a52'}" stroke-width="${big?2.5:1.2}"/>`}
+  const [lx,ly]=polar(150,138,128,-T_SWEEP),[rx,ry]=polar(150,138,128,T_SWEEP);
+  return `<svg viewBox="0 0 300 268">
+    <defs>
+      <radialGradient id="disc" cx="50%" cy="38%" r="70%"><stop offset="0" stop-color="#2a2a2f"/><stop offset=".7" stop-color="#121214"/><stop offset="1" stop-color="#0a0a0b"/></radialGradient>
+      <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a40"/><stop offset="1" stop-color="#101012"/></linearGradient>
+      <filter id="gl" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <path d="${arc(150,138,100,-T_SWEEP,T_SWEEP)}" stroke="#0b0b0d" stroke-width="16" fill="none" stroke-linecap="round"/>
+    <path d="${arc(150,138,100,-T_SWEEP,T_SWEEP)}" stroke="#1c1c20" stroke-width="12" fill="none" stroke-linecap="round"/>
+    <path class="glow" d="${arc(150,138,100,-1,1)}" stroke="var(--red)" stroke-width="12" fill="none" stroke-linecap="round" filter="url(#gl)" opacity="0"/>
     ${ticks}
-    <g class="needle"><path d="M160 12 L151 2 L169 2 Z" fill="var(--red)"/><line x1="160" y1="14" x2="160" y2="48" stroke="var(--red)" stroke-width="4" stroke-linecap="round"/></g>
-    <text class="note" x="160" y="132" text-anchor="middle" font-size="54" font-weight="700" fill="#f4f4f5">–</text>
-    <text class="cents" x="160" y="160" text-anchor="middle" font-size="16" fill="#8b8b93">Sin señal</text>
+    <circle cx="150" cy="138" r="84" fill="url(#rim)"/>
+    <circle cx="150" cy="138" r="80" fill="url(#disc)"/>
+    <circle cx="150" cy="138" r="80" fill="none" stroke="rgba(255,255,255,.06)"/>
+    <path d="M150 20 L142 8 L158 8 Z" fill="var(--red)" filter="url(#gl)"/>
+    <g class="needle"><circle cx="150" cy="38" r="6" fill="#fff" stroke="var(--red)" stroke-width="3"/></g>
+    <text x="${(lx-6).toFixed(1)}" y="${(ly+16).toFixed(1)}" text-anchor="end" font-size="13" fill="#8b8b93">−50</text>
+    <text x="${(rx+6).toFixed(1)}" y="${(ry+16).toFixed(1)}" text-anchor="start" font-size="13" fill="#8b8b93">+50</text>
+    <text class="note" x="150" y="146" text-anchor="middle" font-size="44" font-weight="700" fill="#f4f4f5">–</text>
+    <text class="cents" x="150" y="174" text-anchor="middle" font-size="15" fill="#8b8b93">Sin señal</text>
   </svg><div class="target"></div>`;
 }
 function updateTuner(el,st){
   const note=el.querySelector(".note"),cents=el.querySelector(".cents"),needle=el.querySelector(".needle"),
         glow=el.querySelector(".glow"),target=el.querySelector(".target");
-  if(!st||st.note==null){note.textContent="–";note.setAttribute("fill","#55555c");cents.textContent="Sin señal";
+  if(!st||st.note==null){note.textContent="–";note.setAttribute("fill","#55555c");cents.textContent="Sin señal";cents.setAttribute("fill","#8b8b93");
     needle.style.transform="rotate(0deg)";glow.setAttribute("opacity",0);target.textContent="";return}
-  const c=Math.max(-50,Math.min(50,st.cents)),a=Math.abs(c),col=a<10?"var(--ok)":a<30?"var(--warn)":"var(--red)";
+  const c=Math.max(-50,Math.min(50,st.cents)),a=Math.abs(c),ang=c/50*T_SWEEP;
   note.textContent=st.note;note.setAttribute("fill","#f4f4f5");
-  cents.textContent=(c>0?"+":"")+Math.round(c)+" cents";cents.setAttribute("fill",a<10?"#34d27b":"#8b8b93");
-  needle.style.transform=`rotate(${c/50*80}deg)`;
-  const ang=c/50*80;glow.setAttribute("d",arc(160,168,146,Math.min(0,ang)-1,Math.max(0,ang)+1));
-  glow.setAttribute("stroke",col);glow.setAttribute("opacity",1);
+  cents.textContent=(c>0?"+":"")+Math.round(c)+" cents";cents.setAttribute("fill",a<10?"#34d27b":a<30?"#ffb020":"#ff3b45");
+  needle.style.transform=`rotate(${ang}deg)`;
+  glow.setAttribute("d",arc(150,138,100,Math.min(0,ang)-1,Math.max(0,ang)+1));glow.setAttribute("opacity",1);
   target.textContent=a<1?`Afinado en ${st.target}`:`Corrigiendo a ${st.target}`;
 }
 
@@ -290,15 +363,22 @@ function paintKeys(card,ch){
 }
 
 /* ---------- potenciómetro ---------- */
-function makeKnob(el,{min,max,value,unit,fmt,onChange,def}){
-  let v=value;
-  function draw(){const t=(v-min)/(max-min),a=-135+270*t;
-    el.innerHTML=`<svg viewBox="0 0 112 112"><path d="${arc(56,56,46,-135,135)}" stroke="#26262b" stroke-width="9" fill="none" stroke-linecap="round"/>
-    ${t>0.002?`<path d="${arc(56,56,46,-135,a)}" stroke="var(--red)" stroke-width="9" fill="none" stroke-linecap="round"/>`:""}
-    <circle cx="56" cy="56" r="34" fill="#1d1d21"/>
-    <line x1="${polar(56,56,20,a)[0]}" y1="${polar(56,56,20,a)[1]}" x2="${polar(56,56,31,a)[0]}" y2="${polar(56,56,31,a)[1]}" stroke="#f4f4f5" stroke-width="3" stroke-linecap="round"/>
-    <text x="56" y="60" text-anchor="middle" font-size="17" font-weight="700" fill="#f4f4f5">${fmt(v)}</text>
-    <text x="56" y="76" text-anchor="middle" font-size="10" fill="#8b8b93">${unit}</text></svg>`}
+let knobId=0;
+function makeKnob(el,{min,max,value,unit,fmt,onChange,def,below=false}){
+  let v=value;const id="k"+(knobId++);
+  function draw(){const t=(v-min)/(max-min),a=-135+270*t,[px,py]=polar(56,56,28,a),[qx,qy]=polar(56,56,14,a);
+    el.innerHTML=`<svg viewBox="0 0 112 ${below?128:112}"><defs>
+      <radialGradient id="${id}b" cx="40%" cy="30%" r="75%"><stop offset="0" stop-color="#3a3a40"/><stop offset=".55" stop-color="#18181b"/><stop offset="1" stop-color="#0b0b0c"/></radialGradient>
+      <filter id="${id}g" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <path d="${arc(56,56,48,-135,135)}" stroke="#0b0b0d" stroke-width="9" fill="none" stroke-linecap="round"/>
+    ${t>0.002?`<path d="${arc(56,56,48,-135,a)}" stroke="var(--red)" stroke-width="6" fill="none" stroke-linecap="round" filter="url(#${id}g)"/>`:""}
+    <circle cx="56" cy="58" r="37" fill="#000" opacity=".5"/>
+    <circle cx="56" cy="56" r="37" fill="url(#${id}b)" stroke="#2e2e34"/>
+    <circle cx="56" cy="56" r="30" fill="none" stroke="rgba(255,255,255,.05)"/>
+    <line x1="${qx.toFixed(1)}" y1="${qy.toFixed(1)}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    ${below?`<text x="56" y="124" text-anchor="middle" font-size="16" font-weight="700" fill="#f4f4f5">${fmt(v)}${unit?` <tspan font-size="11" fill="#8b8b93">${unit}</tspan>`:""}</text>`
+      :`<text x="56" y="60" text-anchor="middle" font-size="17" font-weight="700" fill="#f4f4f5">${fmt(v)}</text>
+        <text x="56" y="74" text-anchor="middle" font-size="10" fill="#8b8b93">${unit}</text>`}</svg>`}
   function set(nv,emit=true){v=Math.round(Math.max(min,Math.min(max,nv)));draw();if(emit)onChange(v)}
   el.tabIndex=0;el.setAttribute("role","slider");
   let y0=null,v0;
@@ -316,7 +396,11 @@ function buildChannel(i){
   const ch=cfg.channels[i],card=document.createElement("section");card.className="ch";
   card.innerHTML=`<div class="ch-head"><h2>Voz ${i+1}</h2>
       <button class="toggle en"><i></i>Activo</button><button class="toggle bp"><i></i>Bypass</button></div>
-    <div class="tuner">${tunerSVG()}</div>
+    <div class="ch-top"><div class="tuner">${tunerSVG()}</div>
+      <div class="knobs">
+        <div class="kcard"><h3>Velocidad</h3><div class="knob kspeed"></div><div class="ends"><span>Rápido</span><span>Lento</span></div></div>
+        <div class="kcard"><h3>Humanizar</h3><div class="knob khum"></div><div class="ends"><span>Menos</span><span>Más</span></div></div>
+      </div></div>
     <div class="level"><b></b></div>
     <div class="routing">
       <div class="stepper" data-p="in_ch"><span>Entrada</span><button aria-label="Menos">−</button><strong></strong><button aria-label="Más">+</button></div>
@@ -328,8 +412,8 @@ function buildChannel(i){
     <div class="hint">Se eligen solas con la tonalidad. Toca una tecla para quitarla o añadirla.</div>
     <div class="keys">${keysHTML()}</div>
     <div class="dials">
-      <div class="dial"><div class="knob kspeed"></div><div><h3>Velocidad</h3><p>Tiempo hasta llegar a la nota</p></div>
-        <div class="chips">${SPEED_PRESETS.map(p=>`<button data-v="${p[0]}">${p[1]}</button>`).join("")}</div></div>
+      <div class="dial style-card"><div><h3>Estilo</h3><p>Ajusta velocidad y humanizar de un toque</p></div>
+        <div class="chips">${SPEED_PRESETS.map(p=>`<button data-v="${p[0]}" data-h="${p[2]}">${p[1]}</button>`).join("")}</div></div>
       <div class="dial"><div class="knob kamount"></div><div><h3>Intensidad</h3><p>Cuánto se corrige la voz</p></div>
         <div class="chips">${[[50,"Suave"],[80,"Media"],[100,"Total"]].map(p=>`<button data-a="${p[0]}">${p[1]}</button>`).join("")}</div></div>
     </div>`;
@@ -360,10 +444,13 @@ function buildChannel(i){
   card.querySelector(".tonality .custom").onclick=()=>{send("notes",null);paintKeys(card,ch)};
   card.querySelectorAll(".scales button").forEach(b=>b.onclick=()=>{send("scale",b.dataset.s);send("notes",null);paintScales();paintKeys(card,ch)});
   const chips=card.querySelectorAll("[data-v]");
-  const paintChips=()=>chips.forEach(b=>b.classList.toggle("sel",+b.dataset.v===Math.round(ch.speed_ms)));
-  const speed=makeKnob(card.querySelector(".kspeed"),{min:0,max:200,value:ch.speed_ms,unit:"ms",def:20,
+  if(ch.humanize==null)ch.humanize=0;
+  const paintChips=()=>chips.forEach(b=>b.classList.toggle("sel",+b.dataset.v===Math.round(ch.speed_ms)&&+b.dataset.h===Math.round(ch.humanize)));
+  const speed=makeKnob(card.querySelector(".kspeed"),{min:0,max:200,value:ch.speed_ms,unit:"ms",def:20,below:true,
     fmt:v=>v===0?"Robot":v,onChange:v=>{send("speed_ms",v);paintChips()}});
-  chips.forEach(b=>b.onclick=()=>speed.set(+b.dataset.v));
+  const hum=makeKnob(card.querySelector(".khum"),{min:0,max:100,value:ch.humanize,unit:"",def:0,below:true,
+    fmt:v=>v,onChange:v=>{send("humanize",v);paintChips()}});
+  chips.forEach(b=>b.onclick=()=>{speed.set(+b.dataset.v);hum.set(+b.dataset.h)});
   const achips=card.querySelectorAll("[data-a]");
   const paintA=()=>achips.forEach(b=>b.classList.toggle("sel",+b.dataset.a===Math.round(ch.amount*100)));
   const amount=makeKnob(card.querySelector(".kamount"),{min:0,max:100,value:Math.round(ch.amount*100),unit:"%",def:100,
@@ -529,8 +616,8 @@ const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 /* ---------- modo demostración (abrir ui.html?demo en un navegador) ---------- */
 function DemoApi(){
   const c={audio:{in:"ASIO::WING USB Audio",out:"ASIO::WING USB Audio",sr:48000,bs:32,win:1},
-    channels:[{enabled:true,bypass:false,in_ch:1,out_ch:5,key:9,scale:"Menor natural",speed_ms:15,amount:1},
-              {enabled:true,bypass:false,in_ch:2,out_ch:2,key:4,scale:"Mayor",speed_ms:50,amount:.8,notes:[0,1,0,0,1,0,1,0,1,1,0,1]}]};
+    channels:[{enabled:true,bypass:false,in_ch:1,out_ch:5,key:9,scale:"Menor natural",speed_ms:15,amount:1,humanize:20},
+              {enabled:true,bypass:false,in_ch:2,out_ch:2,key:4,scale:"Mayor",speed_ms:50,amount:.8,humanize:60,notes:[0,1,0,0,1,0,1,0,1,1,0,1]}]};
   if(location.search.includes("auto"))c.audio.in=c.audio.out="";
   const d={inputs:[{key:"Core Audio::Micrófono del MacBook Pro",name:"Micrófono del MacBook Pro",api:"Core Audio",channels:1},{key:"ASIO::WING USB Audio",name:"WING USB Audio",api:"ASIO",channels:48}],
            outputs:[{key:"ASIO::WING USB Audio",name:"WING USB Audio",api:"ASIO",channels:48}]};

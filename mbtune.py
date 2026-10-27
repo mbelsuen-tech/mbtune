@@ -199,6 +199,8 @@ class TuneChannel:
         self.speed_ms = 20.0        # 0 = robot
         self.amount = 1.0           # 0..1
         self.notes = None           # None = notas de la tonalidad; o lista de 12 (0/1) Do..Si
+        self.humanize = 0.0         # 0..100: en notas largas deja pasar el vibrato natural
+        self._hold = 0.0            # segundos que lleva la nota actual
         self.gate = 10 ** (-50 / 20)
         # estado / pantalla
         self.cur_semi = 0.0
@@ -257,21 +259,28 @@ class TuneChannel:
             if f0 > 0:
                 midi = 69.0 + 12.0 * math.log2(f0 / 440.0)
                 note = self.nearest_note(midi)
+                self._hold = self._hold + self.hop / self.sr if note == self.last_note else 0.0
                 self.last_note = note
                 self.detected_midi = midi
                 self.target_note = note
                 self._target = (note - midi) * self.amount
             else:
                 self.last_note = None
+                self._hold = 0.0
                 self.detected_midi = None
                 self.target_note = None
                 self._target = 0.0
             self._f0 = f0
         f0, target = self._f0, self._target
-        if self.speed_ms <= 0:
+        # Humanizar: en una nota sostenida la corrección se vuelve más lenta poco a poco,
+        # así el vibrato y los matices de la voz se conservan; los cambios de nota siguen rápidos
+        speed = self.speed_ms
+        if self.humanize > 0:
+            speed += (self.humanize / 100.0) * 250.0 * min(1.0, max(0.0, (self._hold - 0.12) / 0.25))
+        if speed <= 0:
             alpha = 1.0
         else:
-            alpha = 1.0 - math.exp(-(n / self.sr) / (self.speed_ms / 1000.0))
+            alpha = 1.0 - math.exp(-(n / self.sr) / (speed / 1000.0))
         self.cur_semi += alpha * (target - self.cur_semi)
         y = self.shifter.process(x, 2.0 ** (self.cur_semi / 12.0), self.sr / f0 if f0 > 0 else None)
         return x if self.bypass else y
@@ -286,10 +295,11 @@ def _notes(v):
 
 
 CH_PARAMS = {"enabled": bool, "bypass": bool, "in_ch": int, "out_ch": int,
-             "key": int, "scale": str, "speed_ms": float, "amount": float, "notes": _notes}
+             "key": int, "scale": str, "speed_ms": float, "amount": float, "notes": _notes,
+             "humanize": float}
 
 
-PRESET_KEYS = ["enabled", "bypass", "key", "scale", "speed_ms", "amount", "notes"]
+PRESET_KEYS = ["enabled", "bypass", "key", "scale", "speed_ms", "amount", "notes", "humanize"]
 
 
 class Engine:
