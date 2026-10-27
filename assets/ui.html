@@ -136,6 +136,12 @@ main{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:6px 28px 28px}
 .live-nav button{height:110px;border-radius:22px;background:var(--raised);font-size:28px;font-weight:700}
 .live-nav button:last-child{background:var(--red);color:#fff}
 .live-nav button:disabled{opacity:.3;cursor:default}
+.live-bypass{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.live-bypass button{height:80px;border-radius:18px;background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi);
+  font-size:22px;font-weight:700;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:12px}
+.live-bypass button i{width:14px;height:14px;border-radius:50%;background:#444}
+.live-bypass button.on{color:#fff;box-shadow:inset 0 0 0 2px var(--warn)}
+.live-bypass button.on i{background:var(--warn);box-shadow:0 0 12px var(--warn)}
 .live-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 .live-grid button{min-height:96px;border-radius:18px;background:var(--strip);border:1px solid var(--line);text-align:left;padding:14px 18px;display:flex;gap:14px;align-items:center}
 .live-grid button b{font-size:26px;color:var(--muted);min-width:34px;font-variant-numeric:tabular-nums}
@@ -260,6 +266,7 @@ header img{mix-blend-mode:lighten}
 
 <section id="live">
   <div class="live-now"><small id="liveNum"></small><h2 id="liveName"></h2><p id="liveSum"></p></div>
+  <div class="live-bypass" id="liveBypass"></div>
   <div class="live-nav"><button id="prevBtn">◀ Anterior</button><button id="nextBtn">Siguiente ▶</button></div>
   <div class="live-grid" id="liveGrid"></div>
   <p class="live-hint">También puedes cambiar de canción con las flechas ← → del teclado o con un pedal que envíe Re Pág / Av Pág.</p>
@@ -563,6 +570,14 @@ function renderLive(){
   $("#liveGrid").innerHTML=P.length?P.map((p,i)=>`<button class="${i===c?"sel":""}" data-i="${i}"><b>${i+1}</b><div><span>${esc(p.name)}</span><small>${summary(p).join("<br>")}</small></div></button>`).join("")
     :`<div class="live-empty">Todavía no hay canciones guardadas.<br>Pulsa Volver a ajustes, prepara las voces y pulsa Guardar canción.</div>`;
   $("#liveGrid").querySelectorAll("button").forEach(b=>b.onclick=()=>applySong(+b.dataset.i));
+  renderLiveBypass();
+}
+function renderLiveBypass(){
+  const box=$("#liveBypass");
+  box.innerHTML=cfg.channels.map((c,i)=>`<button class="${c.bypass?"on":""}" data-i="${i}"><i></i>Bypass Voz ${i+1}</button>`).join("");
+  box.querySelectorAll("button").forEach(b=>b.onclick=()=>{const i=+b.dataset.i,c=cfg.channels[i];
+    c.bypass=!c.bypass;api.set_param(i,"bypass",c.bypass);setDirty(true);
+    renderChannels();renderLiveBypass()});  // también se ve al volver a ajustes
 }
 async function saveSong(){
   const name=$("#songName").value.trim()||(presets.presets[presets.current]||{}).name||"";
@@ -572,7 +587,10 @@ async function saveSong(){
 }
 async function applySong(i){
   if(i<0||i>=presets.presets.length)return;
+  const keep=cfg.channels.map(c=>c.bypass);
   const r=await api.apply_preset(i);if(!r.ok)return toast(r.msg);
+  // en modo directo el bypass lo manda el botón, no la canción guardada
+  if(live)r.config.channels.forEach((c,j)=>{if(c.bypass!==keep[j]){c.bypass=keep[j];api.set_param(j,"bypass",keep[j])}});
   cfg.channels=r.config.channels;presets=r;renderChannels();renderSongs();setDirty(false);
 }
 const step=d=>{const c=presets.current;applySong(c==null?0:c+d)};
