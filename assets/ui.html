@@ -72,7 +72,6 @@ main{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:6px 28px 28px}
 .stepper button{width:50px;height:50px;border-radius:12px;background:var(--raised);font-size:26px;line-height:1}
 .stepper button:active{background:var(--red-deep)}
 
-.label{color:var(--muted);font-size:14px;margin:0 0 8px 2px}
 .tonality{display:flex;align-items:baseline;gap:12px;margin:2px 0 10px 2px}
 .tonality strong{font-size:28px;font-weight:700;color:var(--text)}
 .tonality span{color:var(--muted);font-size:14px}
@@ -82,18 +81,6 @@ main{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:6px 28px 28px}
 .roots{display:grid;grid-template-columns:repeat(12,1fr);gap:5px;margin-bottom:8px}
 .roots button{height:46px;border-radius:10px;background:var(--raised);font-size:14px;font-weight:600;color:var(--muted);padding:0}
 .roots button.sel{background:var(--red);color:#fff}
-.hint{color:var(--muted);font-size:13px;margin:-2px 0 8px 2px}
-.keys{position:relative;height:104px;margin-bottom:16px}
-.keys button{position:absolute;bottom:0;border-radius:0 0 12px 12px;font-size:14px;font-weight:600;
-  display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px}
-.keys .w{top:0;background:#e9e9ec;color:#222;border:2px solid var(--strip)}
-.keys .b{top:0;height:60px;z-index:2;background:#45454e;color:#fff;font-size:12px;border:2px solid var(--strip);padding-bottom:6px}
-.keys button.root{background:var(--red);color:#fff}
-.keys button .in{position:absolute;top:8px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:var(--red)}
-.keys button.root .in{background:#fff}
-.keys .b .in{top:6px}
-.keys .w.out{background:#7d7d84;color:#2a2a2e}
-.keys .b.out{background:#121214;color:#4a4a50}
 
 .scales{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
 .scales button{height:44px!important}
@@ -226,10 +213,6 @@ header img{mix-blend-mode:lighten}
 .tonality .custom{background:transparent;color:var(--red);box-shadow:inset 0 0 0 1px rgba(227,16,28,.6)}
 .roots button,.scales button{background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi)}
 .roots button.sel,.scales button.sel{background:var(--btn-red);border-color:#ff3b45;color:#fff;box-shadow:var(--hi),var(--glow)}
-.keys .w{background:linear-gradient(180deg,#f2f2f4 0%,#d4d4d8 100%)}
-.keys .w.out{background:linear-gradient(180deg,#8a8a90 0%,#6c6c72 100%)}
-.keys .b{background:linear-gradient(180deg,#4a4a52 0%,#2c2c32 100%)}
-.keys button.root{background:linear-gradient(180deg,#ef2430 0%,#a80a13 100%)!important;color:#fff;box-shadow:0 0 16px rgba(227,16,28,.6)}
 .dial{background:var(--panel-2);border:1px solid var(--edge);box-shadow:var(--hi);border-radius:16px}
 .chips button{background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi)}
 .chips button.sel{box-shadow:inset 0 0 0 2px var(--red),0 0 10px rgba(227,16,28,.4);color:#fff}
@@ -342,24 +325,16 @@ function updateTuner(el,st){
   target.textContent=a<1?`Afinado en ${st.target}`:`Corrigiendo a ${st.target}`;
 }
 
-/* ---------- teclado de tonalidad ---------- */
-function keysHTML(){
-  const whites=[0,2,4,5,7,9,11],blacks=[[1,0],[3,1],[6,3],[8,4],[10,5]],W=100/7;let h="";
-  whites.forEach((n,i)=>h+=`<button class="w" data-k="${n}" style="left:${i*W}%;width:${W}%" aria-label="${NOTES[n]}"><span class="in"></span>${NOTES[n]}</button>`);
-  blacks.forEach(([n,after])=>h+=`<button class="b" data-k="${n}" style="left:${(after+1)*W-W*0.32}%;width:${W*0.64}%" aria-label="${NOTES[n]}"><span class="in"></span>${NOTES[n]}</button>`);
-  return h;
-}
+/* ---------- tonalidad ---------- */
 const scaleOf=ch=>SCALES.find(s=>s[0]===ch.scale)||SCALES[0];
 function autoNotes(ch){const m=Array(12).fill(0);scaleOf(ch)[2].forEach(i=>m[(ch.key+i)%12]=1);return m}
 const activeNotes=ch=>ch.notes||autoNotes(ch);
-function paintKeys(card,ch){
+function paintTonality(card,ch){
   const act=activeNotes(ch),chrom=ch.scale==="Cromática"&&!ch.notes;
   const t=card.querySelector(".tonality");t.classList.toggle("is-custom",!!ch.notes);
   t.querySelector("strong").textContent=chrom?"Cromática":`${NOTES[ch.key]} ${MODE_NAMES[ch.scale]}`;
   t.querySelector("span").textContent=ch.notes?`${act.filter(Boolean).length} notas elegidas a mano`:chrom?"Corrige a todas las notas":`${act.filter(Boolean).length} notas`;
   card.querySelectorAll(".roots button").forEach(b=>b.classList.toggle("sel",+b.dataset.r===ch.key&&!chrom));
-  card.querySelectorAll(".keys button").forEach(b=>{const k=+b.dataset.k,inScale=!!act[k];
-    b.classList.toggle("root",k===ch.key&&!chrom&&inScale);b.classList.toggle("out",!inScale);b.querySelector(".in").style.display=inScale?"":"none"});
 }
 
 /* ---------- potenciómetro ---------- */
@@ -408,9 +383,6 @@ function buildChannel(i){
     <div class="tonality"><strong></strong><span></span><button class="custom">Volver a la tonalidad</button></div>
     <div class="roots">${NOTES.map((n,i)=>`<button data-r="${i}">${n}</button>`).join("")}</div>
     <div class="scales">${SCALES.map(s=>`<button data-s="${s[0]}">${s[1]}</button>`).join("")}</div>
-    <div class="label">Notas a las que corrige</div>
-    <div class="hint">Se eligen solas con la tonalidad. Toca una tecla para quitarla o añadirla.</div>
-    <div class="keys">${keysHTML()}</div>
     <div class="dials">
       <div class="dial style-card"><div><h3>Estilo</h3><p>Ajusta velocidad y humanizar de un toque</p></div>
         <div class="chips">${SPEED_PRESETS.map(p=>`<button data-v="${p[0]}" data-h="${p[2]}">${p[1]}</button>`).join("")}</div></div>
@@ -436,13 +408,9 @@ function buildChannel(i){
     paint()});
   card.querySelectorAll(".roots button").forEach(b=>b.onclick=()=>{
     if(ch.scale==="Cromática"){send("scale","Mayor");paintScales()}
-    send("key",+b.dataset.r);send("notes",null);paintKeys(card,ch)});
-  card.querySelectorAll(".keys button").forEach(b=>b.onclick=()=>{
-    const m=activeNotes(ch).slice(),k=+b.dataset.k;m[k]=m[k]?0:1;
-    if(!m.some(Boolean))return toast("Deja al menos una nota activa");
-    send("notes",m.join()===autoNotes(ch).join()?null:m);paintKeys(card,ch)});
-  card.querySelector(".tonality .custom").onclick=()=>{send("notes",null);paintKeys(card,ch)};
-  card.querySelectorAll(".scales button").forEach(b=>b.onclick=()=>{send("scale",b.dataset.s);send("notes",null);paintScales();paintKeys(card,ch)});
+    send("key",+b.dataset.r);send("notes",null);paintTonality(card,ch)});
+  card.querySelector(".tonality .custom").onclick=()=>{send("notes",null);paintTonality(card,ch)};
+  card.querySelectorAll(".scales button").forEach(b=>b.onclick=()=>{send("scale",b.dataset.s);send("notes",null);paintScales();paintTonality(card,ch)});
   const chips=card.querySelectorAll("[data-v]");
   if(ch.humanize==null)ch.humanize=0;
   const paintChips=()=>chips.forEach(b=>b.classList.toggle("sel",+b.dataset.v===Math.round(ch.speed_ms)&&+b.dataset.h===Math.round(ch.humanize)));
@@ -456,7 +424,7 @@ function buildChannel(i){
   const amount=makeKnob(card.querySelector(".kamount"),{min:0,max:100,value:Math.round(ch.amount*100),unit:"%",def:100,
     fmt:v=>v,onChange:v=>{send("amount",v/100);paintA()}});
   achips.forEach(b=>b.onclick=()=>amount.set(+b.dataset.a));paintA();
-  paintToggles();paintScales();paintKeys(card,ch);paintChips();
+  paintToggles();paintScales();paintTonality(card,ch);paintChips();
   return card;
 }
 

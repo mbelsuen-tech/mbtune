@@ -23,6 +23,9 @@ import math
 from pathlib import Path
 
 os.environ.setdefault("SD_ENABLE_ASIO", "1")  # activa ASIO en Windows
+# Python reparte el turno entre hilos cada 5 ms: el hilo de audio podía quedarse
+# esperando a la interfaz más que lo que dura un buffer pequeño (32 muestras ≈ 0,7 ms)
+sys.setswitchinterval(0.0005)
 import numpy as np
 
 try:
@@ -243,7 +246,12 @@ class TuneChannel:
         n = len(x)
         N = self.detector.N
         self.level = max(float(np.max(np.abs(x))), self.level * 0.85)
-        self.hist = np.concatenate((self.hist, x))[-N:]
+        # historial fijo desplazado en su sitio: no se crea memoria nueva en cada bloque
+        if n >= N:
+            self.hist[:] = x[-N:]
+        else:
+            self.hist[:-n] = self.hist[n:]
+            self.hist[-n:] = x
         self._since += n
         if self._since >= self.hop:     # con buffers pequeños no se analiza en cada bloque
             self._since = 0
@@ -347,6 +355,16 @@ class Engine:
                 return i, d[field]
         raise RuntimeError("Dispositivo no encontrado. Conéctalo y vuelve a elegirlo.")
 
+    @staticmethod
+    def _low_latency_settings(in_dev, out_dev):
+        """En Mac, permite a PortAudio poner la tarjeta al buffer y la frecuencia elegidos.
+        Sin esto CoreAudio mantiene el buffer que tenga la tarjeta (a menudo 512)."""
+        apis = sd.query_hostapis()
+        is_ca = ["Core Audio" in apis[sd.query_devices(d)["hostapi"]]["name"] for d in (in_dev, out_dev)]
+        if not any(is_ca):
+            return None
+        return tuple(sd.CoreAudioSettings(change_device_parameters=True) if ca else None for ca in is_ca)
+
     # audio ----------------------------------------------------------------
     def _callback(self, indata, outdata, frames, time_info, status):
         outdata.fill(0)
@@ -380,9 +398,16 @@ class Engine:
             sr, bs, win = int(self.audio["sr"]), int(self.audio["bs"]), float(self.audio["win"])
             for ch in self.channels:
                 ch.setup(sr, win)
-            self.stream = sd.Stream(device=(in_dev, out_dev), samplerate=sr, blocksize=bs,
-                                    dtype="float32", channels=(nin, nout), latency=bs / sr,
-                                    callback=self._callback)
+            opts = dict(device=(in_dev, out_dev), samplerate=sr, blocksize=bs,
+                        dtype="float32", channels=(nin, nout), latency=bs / sr,
+                        callback=self._callback)
+            extra = self._low_latency_settings(in_dev, out_dev)
+            try:
+                self.stream = sd.Stream(extra_settings=extra, **opts)
+            except Exception:
+                if extra is None:
+                    raise
+                self.stream = sd.Stream(**opts)   # tarjeta que no deja cambiar su buffer
             self.stream.start()
             lat_in, lat_out = self.stream.latency
             self.save()
