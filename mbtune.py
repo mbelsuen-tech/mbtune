@@ -275,14 +275,23 @@ class Engine:
         self.audio = {"in": "", "out": "", "sr": 48000, "bs": 256, "win": 20}
         self.stream = None
         self.error = None
+        self.in_peaks = np.zeros(0)  # nivel de cada entrada de la tarjeta (diagnóstico)
         self.presets = []        # canciones guardadas: {"name", "channels": [...]}
         self.current = None      # índice de la canción cargada
         self.load()
 
     # dispositivos ---------------------------------------------------------
-    def devices(self):
+    def devices(self, rescan=False):
         if sd is None:
             return {"error": f"No se pudo cargar sounddevice: {_SD_ERROR}", "inputs": [], "outputs": []}
+        if rescan and self.stream is None:
+            # PortAudio solo lee la lista de tarjetas al arrancar: se reinicia para
+            # detectar una tarjeta conectada o encendida después de abrir MBTune
+            try:
+                sd._terminate()
+                sd._initialize()
+            except Exception:
+                pass
         devs, apis = sd.query_devices(), sd.query_hostapis()
         res = {"inputs": [], "outputs": []}
         for i, d in enumerate(devs):
@@ -307,6 +316,11 @@ class Engine:
     def _callback(self, indata, outdata, frames, time_info, status):
         outdata.fill(0)
         try:
+            pk = np.max(np.abs(indata), axis=0)
+            if self.in_peaks.shape != pk.shape:
+                self.in_peaks = pk.astype(np.float64)
+            else:
+                self.in_peaks = np.maximum(pk, self.in_peaks * 0.8)
             for ch in self.channels:
                 if not ch.enabled:
                     continue
@@ -353,7 +367,9 @@ class Engine:
                 self.stream = None
 
     def state(self):
-        out = {"running": self.stream is not None, "error": self.error, "channels": []}
+        running = self.stream is not None
+        out = {"running": running, "error": self.error, "channels": [],
+               "inputs": [round(float(v), 4) for v in self.in_peaks] if running else []}
         self.error = None
         for ch in self.channels:
             if ch.detected_midi is not None and ch.target_note is not None:
@@ -458,8 +474,8 @@ class Api:
     def __init__(self):
         self._engine = Engine()
 
-    def get_devices(self):
-        return self._engine.devices()
+    def get_devices(self, rescan=False):
+        return self._engine.devices(bool(rescan))
 
     def get_config(self):
         return self._engine.config()

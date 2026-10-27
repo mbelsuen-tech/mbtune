@@ -34,7 +34,8 @@ header img{height:70px}
 .start.running{background:var(--raised);box-shadow:inset 0 0 0 2px var(--red)}
 
 /* barra de audio */
-.audio{display:grid;grid-template-columns:minmax(200px,1.3fr) minmax(200px,1.3fr) auto auto auto;gap:16px;align-items:end;padding:16px 28px}
+.rescan{height:50px;padding:0 14px;white-space:nowrap;border-radius:12px;background:var(--raised);font-size:15px}
+.audio{gap:12px!important;display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) auto auto auto auto;gap:16px;align-items:end;padding:16px 28px}
 .field label{display:block;color:var(--muted);font-size:13px;margin:0 0 6px 2px}
 select{width:100%;height:50px;border-radius:12px;background:var(--strip);color:var(--text);
   border:1px solid var(--line);padding:0 34px 0 12px;font:inherit;font-size:14px;text-overflow:ellipsis;appearance:none;
@@ -157,6 +158,22 @@ main{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:6px 28px 28px}
 body.is-live .audio,body.is-live #songs,body.is-live main{display:none}
 body:not(.is-live) #live{display:none}
 
+/* diagnóstico de entradas */
+.inputs{display:none;margin:0 28px 16px;background:var(--strip);border:1px solid var(--line);border-radius:18px;padding:12px 14px}
+.inputs.show{display:block}
+.inputs-head{display:flex;justify-content:space-between;color:var(--muted);font-size:14px;margin-bottom:10px}
+.inputs-head small{font-size:13px}
+.cells{display:grid;grid-template-columns:repeat(24,1fr);gap:4px}
+.cell{height:34px;border-radius:7px;background:var(--black);position:relative;overflow:hidden;font-size:12px;
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;color:var(--muted)}
+.cell b{position:absolute;left:0;right:0;bottom:0;background:var(--ok);opacity:.85;height:0}
+.cell span{position:relative;z-index:1;text-shadow:0 1px 2px #000}
+.cell.lit{color:#fff;font-weight:700}
+.cell.used{box-shadow:inset 0 0 0 2px var(--red);color:var(--text)}
+.silence{display:none;margin-top:12px;padding:12px 14px;border-radius:12px;background:#2a1a05;border:1px solid var(--warn);font-size:14px;line-height:1.5}
+.silence.show{display:block}
+body.is-live .inputs{display:none!important}
+
 @media (max-width:1060px){main{grid-template-columns:1fr}.audio{grid-template-columns:1fr 1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -174,9 +191,16 @@ body:not(.is-live) #live{display:none}
 <section class="audio">
   <div class="field"><label for="inDev">Entrada de audio</label><select id="inDev"></select></div>
   <div class="field"><label for="outDev">Salida de audio</label><select id="outDev"></select></div>
+  <div class="field"><label>&nbsp;</label><button class="rescan" id="rescanBtn" title="Busca de nuevo las tarjetas conectadas">↻ Buscar</button></div>
   <div class="field"><label>Frecuencia</label><div class="seg" data-audio="sr"></div></div>
   <div class="field"><label>Buffer</label><div class="seg" data-audio="bs"></div></div>
   <div class="field"><label>Ventana (ms)</label><div class="seg" data-audio="win"></div></div>
+</section>
+
+<section class="inputs" id="inputs">
+  <div class="inputs-head"><span>Señal que llega por cada entrada de la tarjeta</span><small>En rojo, las que usan Voz 1 y Voz 2</small></div>
+  <div class="cells" id="cells"></div>
+  <div class="silence" id="silence"></div>
 </section>
 
 <section class="songs" id="songs">
@@ -316,7 +340,11 @@ function buildChannel(i){
   bp.onclick=()=>{send("bypass",!ch.bypass);paintToggles()};
   card.querySelectorAll(".stepper").forEach(st=>{const p=st.dataset.p,out=st.querySelector("strong"),[minus,plus]=st.querySelectorAll("button");
     const paint=()=>out.textContent=ch[p];
-    minus.onclick=()=>{send(p,Math.max(1,ch[p]-1));paint()};plus.onclick=()=>{send(p,Math.min(64,ch[p]+1));paint()};paint()});
+    const change=d=>{
+      // Si entrada y salida van juntas (1→1, 2→2…), al mover la entrada la salida la sigue
+      const linked=p==="in_ch"&&ch.in_ch===ch.out_ch,v=Math.max(1,Math.min(64,ch[p]+d));
+      send(p,v);if(linked)send("out_ch",v);card.querySelectorAll(".stepper strong").forEach((o,j)=>o.textContent=ch[j?"out_ch":"in_ch"])};
+    minus.onclick=()=>change(-1);plus.onclick=()=>change(1);paint()});
   card.querySelectorAll(".roots button").forEach(b=>b.onclick=()=>{
     if(ch.scale==="Cromática"){send("scale","Mayor");paintScales()}
     send("key",+b.dataset.r);send("notes",null);paintKeys(card,ch)});
@@ -343,9 +371,21 @@ function buildChannel(i){
 /* ---------- audio ---------- */
 function fillDevices(dev){
   if(dev.error)toast(dev.error);
-  const fill=(sel,list,cur)=>{sel.innerHTML=list.length?list.map(d=>`<option value="${d.key}">${d.name} (${d.api})</option>`).join(""):`<option value="">No se encontró ninguna tarjeta</option>`;
-    if(list.some(d=>d.key===cur))sel.value=cur};
+  // Si no hay una tarjeta elegida (o ya no está), se elige sola la de más canales,
+  // dando prioridad a la que tiene entradas y salidas (una mesa o interfaz, no el micro del ordenador)
+  const both=new Set(dev.inputs.map(d=>d.key).filter(k=>dev.outputs.some(o=>o.key===k)));
+  const best=list=>[...list].sort((a,b)=>(both.has(b.key)-both.has(a.key))||(b.channels-a.channels))[0];
+  const fill=(sel,list,cur)=>{sel.innerHTML=list.length?list.map(d=>`<option value="${d.key}">${d.name} (${d.api}, ${d.channels} canales)</option>`).join(""):`<option value="">No se encontró ninguna tarjeta</option>`;
+    if(list.some(d=>d.key===cur))sel.value=cur;else if(list.length)sel.value=best(list).key};
   fill($("#inDev"),dev.inputs,cfg.audio.in);fill($("#outDev"),dev.outputs,cfg.audio.out);
+  // Si la tarjeta guardada tiene menos canales de los que usan las voces (p. ej. el micro del Mac),
+  // se cambia sola a la interfaz con más canales
+  const need=Math.max(...cfg.channels.filter(c=>c.enabled).map(c=>c.in_ch),1);
+  const cur=dev.inputs.find(d=>d.key===$("#inDev").value);
+  if(cur&&cur.channels<need&&dev.inputs.length){const b=best(dev.inputs);
+    if(b.channels>=need&&b.key!==cur.key){$("#inDev").value=b.key;
+      if(dev.outputs.some(o=>o.key===b.key))$("#outDev").value=b.key;
+      setTimeout(()=>toast(`${cur.name} solo tiene ${cur.channels} entrada(s). He elegido ${b.name}.`),300)}}
   cfg.audio.in=$("#inDev").value;cfg.audio.out=$("#outDev").value;
 }
 function buildSegs(){
@@ -368,7 +408,22 @@ async function start(){
   const res=await api.start(cfg.audio);
   if(res.ok)setRunning(true,res);else{setRunning(false);toast(res.msg)}
 }
-let polling=false;
+let polling=false, silentPolls=0;
+function updateInputs(s){
+  const box=$("#inputs"),cells=$("#cells"),P=s.inputs||[];
+  box.classList.toggle("show",s.running&&P.length>0);
+  if(!s.running||!P.length){silentPolls=0;$("#silence").classList.remove("show");return}
+  if(cells.children.length!==P.length)cells.innerHTML=P.map((_,i)=>`<div class="cell"><b></b><span>${i+1}</span></div>`).join("");
+  const used=new Set(cfg.channels.filter(c=>c.enabled).map(c=>c.in_ch-1));
+  P.forEach((v,i)=>{const c=cells.children[i],db=v>0?20*Math.log10(v):-90;
+    c.firstChild.style.height=Math.max(0,Math.min(100,(db+60)/60*100))+"%";c.classList.toggle("used",used.has(i));c.classList.toggle("lit",db>-50)});
+  const any=P.some(v=>v>0.0005),onUsed=[...used].some(i=>P[i]>0.0005);
+  silentPolls=any?0:silentPolls+1;
+  const el=$("#silence");
+  if(silentPolls>40){el.innerHTML=`<b>No llega ninguna señal desde la tarjeta.</b><br>En Mac: Ajustes del Sistema → Privacidad y seguridad → Micrófono, y activa MBTune (o Terminal si lo abres con el archivo INICIAR). Luego cierra y vuelve a abrir MBTune.<br>En la mesa: comprueba que a las salidas USB les has asignado la señal de tus micros.`;el.classList.add("show")}
+  else if(any&&!onUsed){const first=P.findIndex(v=>v>0.0005)+1;el.innerHTML=`<b>Llega señal por la entrada ${first}, pero tus voces escuchan otras entradas.</b> Cambia la Entrada de la Voz 1 o la Voz 2 a ${first}.`;el.classList.add("show")}
+  else el.classList.remove("show");
+}
 async function poll(){
   if(polling)return;polling=true;
   try{await pollOnce()}finally{polling=false}
@@ -379,6 +434,7 @@ async function pollOnce(){
     try{const s=await api.get_state();if(s.error)toast("Error de audio: "+s.error)}catch(e){}
     return}
   try{const s=await api.get_state();
+    updateInputs(s);
     document.querySelectorAll(".ch").forEach((card,i)=>{const st=s.channels[i];updateTuner(card.querySelector(".tuner"),st);
       const db=st&&st.level>0?20*Math.log10(st.level):-80;card.querySelector(".level b").style.width=Math.max(0,Math.min(100,(db+60)/60*100))+"%"});
     if(s.error)toast("Error de audio: "+s.error);
@@ -389,6 +445,10 @@ async function init(){
   fillDevices(await api.get_devices());
   buildSegs();
   $("#inDev").onchange=$("#outDev").onchange=audioChanged;
+  $("#rescanBtn").onclick=async()=>{
+    if(running)return toast("Pulsa Detener antes de buscar tarjetas.");
+    const d=await api.get_devices(true);fillDevices(d);await api.set_audio(cfg.audio);
+    const n=d.inputs.length;toast(n?`${n===1?"Encontrada 1 tarjeta con entradas":`Encontradas ${n} tarjetas con entradas`}. Elige la tuya en la lista.`:"No se ha encontrado ninguna tarjeta. Revisa el cable y el driver.")};
   renderChannels();
   presets=await api.get_presets();renderSongs();
   $("#saveBtn").onclick=saveSong;
@@ -462,7 +522,8 @@ function DemoApi(){
   const c={audio:{in:"ASIO::WING USB Audio",out:"ASIO::WING USB Audio",sr:48000,bs:128,win:20},
     channels:[{enabled:true,bypass:false,in_ch:1,out_ch:1,key:9,scale:"Menor natural",speed_ms:15,amount:1},
               {enabled:true,bypass:false,in_ch:2,out_ch:2,key:4,scale:"Mayor",speed_ms:50,amount:.8,notes:[0,1,0,0,1,0,1,0,1,1,0,1]}]};
-  const d={inputs:[{key:"ASIO::WING USB Audio",name:"WING USB Audio",api:"ASIO",channels:48}],
+  if(location.search.includes("auto"))c.audio.in=c.audio.out="";
+  const d={inputs:[{key:"Core Audio::Micrófono del MacBook Pro",name:"Micrófono del MacBook Pro",api:"Core Audio",channels:1},{key:"ASIO::WING USB Audio",name:"WING USB Audio",api:"ASIO",channels:48}],
            outputs:[{key:"ASIO::WING USB Audio",name:"WING USB Audio",api:"ASIO",channels:48}]};
   let t=0;const P=v=>Promise.resolve(v);
   const mk=(n,k1,s1,k2,s2,extra={})=>({name:n,channels:[{enabled:true,bypass:false,key:k1,scale:s1,speed_ms:15,amount:1,notes:null},
@@ -479,7 +540,7 @@ function DemoApi(){
     delete_preset:i=>{pr.presets.splice(i,1);if(pr.current===i)pr.current=null;else if(pr.current>i)pr.current--;return P(info())},
     move_preset:(i,d)=>{const j=i+d;if(j>=0&&j<pr.presets.length){[pr.presets[i],pr.presets[j]]=[pr.presets[j],pr.presets[i]];if(pr.current===i)pr.current=j;else if(pr.current===j)pr.current=i}return P(info())},get_config:()=>P(c),get_devices:()=>P(d),set_param:()=>P(),set_audio:()=>P(),
     start:()=>P({ok:true,latency:16.4,nin:48,nout:48}),stop:()=>P({ok:true}),
-    get_state:()=>{t+=.07;return P({running:true,channels:[
+    get_state:()=>{t+=.07;return P({running:true,inputs:Array.from({length:48},(_,i)=>i===4?.3+.1*Math.sin(t*4):i===5?.12:0),channels:[
       {note:"La4",target:"La4",cents:6+4*Math.sin(t*3),level:.35},
       {note:"Sol♯4",target:"Sol♯4",cents:-24+5*Math.sin(t*2),level:.2}]})}};
 }
