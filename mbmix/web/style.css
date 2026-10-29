@@ -239,3 +239,34 @@ input{font:inherit;color:var(--text);user-select:text;-webkit-user-select:text}
 @media (max-width:900px){.title{display:none}.mixsel{min-width:110px}}
 @media (max-height:700px){.proc{display:none}.solo{height:30px}.mute{height:34px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ===== v2: WING + menús simples ===== */
+.tbtn{height:54px;min-width:62px;padding:4px 8px 3px;border-radius:12px;background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;position:relative}
+.tbtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tbtn small{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap}
+.tbtn:active{filter:brightness(1.3)}
+.mute{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+.mute svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mute small{font-size:9px;letter-spacing:.6px;line-height:1}
+.ptitle{flex:1;min-width:240px}
+.ptitle h3{margin:0;font-size:20px}
+.ptitle p{margin:3px 0 0;color:var(--muted);font-size:13px;line-height:1.35}
+.phead h3{flex:none}
+h3.sec{margin:14px 0 8px;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.6px;text-transform:uppercase}
+.knobs.left{justify-content:flex-start}
+.incol{display:flex;flex-direction:column;gap:16px}
+.kn{width:118px}
+.kn h4{min-height:30px;display:flex;align-items:center;justify-content:center;line-height:1.15}
+.bands button{min-width:92px;position:relative;overflow:hidden}
+.bands button::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--bc)}
+.bands button.sel{background:var(--btn);color:#fff;box-shadow:inset 0 0 0 2px var(--bc),0 0 10px rgba(0,0,0,.4)}
+.colors{grid-template-columns:repeat(7,1fr);max-width:720px}
+.colors button{font-size:11px}
+.pick button.sel::after{content:attr(data-n);position:absolute;right:3px;bottom:2px;font-size:9px;color:var(--red)}
+.help{margin:6px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.45;color:#d8d8dc}
+.help b{color:#fff}
+body.nometers .meter,body.nometers .grbar,body.nometers .bigmeter{visibility:hidden}
+.conn-dot{right:5px;top:5px}
+.scribble .nm{font-size:12px;white-space:normal;line-height:1.08;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:normal;overflow-wrap:normal;font-size:11.5px;letter-spacing:-.2px;padding:1px 1px 0}
+@media (max-width:1300px){.title{display:none}}
