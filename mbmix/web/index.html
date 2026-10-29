@@ -48,14 +48,17 @@
     <button class="close" data-close>✕</button>
     <h2>Conectar mesa</h2>
     <p class="sub" id="connInfo">Elige tu mesa. Con «Demo» puedes probarlo todo sin mesa.</p>
-    <div class="models" id="models">
-      <button class="model" data-mode="wing"><b>Behringer WING Rack</b><small>También WING y WING Compact. Por cable de red o Wi-Fi.</small></button>
-      <button class="model" data-mode="demo"><b>Demo</b><small>Mesa de prueba con sonido simulado, para practicar.</small></button>
+    <h3>1 · ¿Qué mesa tienes?</h3>
+    <div class="models three" id="models">
+      <button class="model" data-card="rack"><b>WING Rack</b><small>Behringer WING Rack</small></button>
+      <button class="model" data-card="wing"><b>WING</b><small>WING completa o WING Compact</small></button>
+      <button class="model" data-card="xr18"><b>XR18</b><small>X Air XR18 (también XR16, XR12 y Midas MR18)</small></button>
     </div>
+    <button class="switch" id="demoSw"><i></i><span><b>Probar sin mesa (demo)</b><small>Mesa simulada con sonido de ejemplo, para practicar.</small></span></button>
     <div id="ipBox">
-      <h3>Dirección IP de la mesa</h3>
+      <h3>2 · Dirección IP de la mesa</h3>
       <div class="row"><input class="field" id="ip" inputmode="decimal" placeholder="Ejemplo: 192.168.1.62" autocomplete="off"><button class="btn" id="findBtn">Buscar mesa</button></div>
-      <p class="hint" style="margin-top:8px">La IP la ves en la WING: <b>Setup → Network</b>. O pulsa «Buscar mesa».</p>
+      <p class="hint" style="margin-top:8px">La IP la ves en la WING en <b>Setup → Network</b>; en la XR18, en la app X Air o en tu router. O pulsa «Buscar mesa».</p>
       <div class="found" id="found"></div>
     </div>
     <div class="row" style="margin-top:18px"><button class="btn red" id="connectBtn" style="flex:1;height:54px;font-size:17px">Conectar</button></div>
@@ -103,7 +106,7 @@
     <button class="close" data-close>✕</button>
     <h2>Cómo se usa</h2>
     <ul class="help">
-      <li><b>Arriba</b> eliges qué canales ves: 1–16, 17–32, 33–40, Aux, Buses, Salidas, DCA o «Mi vista» (los que tú elijas).</li>
+      <li><b>Arriba</b> eliges qué canales ves (cambia según tu mesa: WING o XR18) o «Mi vista», con los canales que tú elijas.</li>
       <li><b>Fader</b>: arrastra arriba o abajo. Toca dos veces para dejarlo en 0 dB.</li>
       <li><b>MUTE</b> silencia el canal. <b>SOLO</b> lo escuchas tú solo por los cascos.</li>
       <li><b>Toca el nombre</b> de un canal para ajustar su entrada, puerta, compresor, ecualizador, envíos, nombre y color.</li>

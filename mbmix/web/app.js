@@ -7,7 +7,7 @@ const range=(a,b)=>Array.from({length:b-a+1},(_,i)=>a+i);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ================================================================ estado */
-let STRIPS=[],BY={},SPEC={},S={},M={},status={},scenes=[],layout={custom:[]};
+let MODEL={layers:[],targets:[],colors:[]},STRIPS=[],BY={},SPEC={},S={},M={},status={},scenes=[],layout={custom:[]};
 let ws=null,wsTries=0;
 let layer=load("layer","in1"),sendBus=+load("sendBus",0),detailId=null,detailTab=null,eqBand=null;
 const active=new Set();          // parámetros que se están moviendo con el dedo (no se pisan con lo que llega)
@@ -33,10 +33,10 @@ const FD={
   db(p){return p>=.5?p*40-30:p>=.25?p*80-50:p>=.0625?p*160-70:p>0?p*480-90:-144},
 };
 function norm(k){const s=SPEC[k],v=+S[k];if(!s)return 0;
-  switch(s[3]){case"fdr":return FD.pos(v);case"log":return clamp(Math.log(v/s[1])/Math.log(s[2]/s[1]));
+  switch(s[3]){case"fdr":return FD.pos(v);case"enum":{const l=s[5];let i=0;l.forEach((x,j)=>{if(Math.abs(x-v)<Math.abs(l[i]-v))i=j});return i/(l.length-1)}case"log":return clamp(Math.log(v/s[1])/Math.log(s[2]/s[1]));
     case"log1":return clamp(Math.log1p(v)/Math.log1p(s[2]));default:return clamp((v-s[1])/(s[2]-s[1]))}}
 function denorm(k,n){const s=SPEC[k];n=clamp(n);
-  switch(s[3]){case"fdr":return FD.db(n);case"log":return s[1]*Math.pow(s[2]/s[1],n);case"log1":return Math.expm1(n*Math.log1p(s[2]));
+  switch(s[3]){case"fdr":return FD.db(n);case"enum":return s[5][Math.round(n*(s[5].length-1))];case"log":return s[1]*Math.pow(s[2]/s[1],n);case"log1":return Math.expm1(n*Math.log1p(s[2]));
     default:return s[1]+n*(s[2]-s[1])}}
 const setN=(k,n)=>setP(k,denorm(k,n));
 
@@ -48,33 +48,27 @@ const F={
   pan(p){p=Math.round(+p);return p===0?"Centro":p<0?"Izq "+(-p):"Der "+p},
 };
 
-/* colores de la WING (0 = sin color) */
-const COLORS=["#4a4a52","#7b8fb0","#2f7bf2","#3346c8","#1fc2d4","#2fbf5b","#8fae2a","#f2c230","#ff8a1f","#e3101c","#ff6b5a","#ff5fb0","#b06ad8"];
-const COLOR_NAMES=["Ninguno","Gris azul","Azul","Azul oscuro","Turquesa","Verde","Oliva","Amarillo","Naranja","Rojo","Coral","Rosa","Malva"];
+const NOCOLOR="#4a4a52";
 
 /* ================================================================ tiras */
 const nameOf=s=>S[s.id+".name"]||s.label;
-const colorOf=s=>COLORS[+S[s.id+".color"]||0]||COLORS[0];
+const colorOf=s=>(MODEL.colors[+S[s.id+".color"]||0]||[NOCOLOR])[0];
 const faderKey=(s,bus)=>bus&&s.sends?`${s.id}.send.${bus}.lvl`:s.id+".fader";
-const busStrip=n=>BY["bus"+n];
-const bandName=b=>b==="l"?"Graves":b==="h"?"Agudos":"Medios "+b;
+const target=n=>MODEL.targets.find(t=>t.n===n);
+const busStrip=n=>BY[target(n)?.id];
+function bandName(s,b){const i=s.eq.indexOf(b),n=s.eq.length;return b==="l"||(i===0&&s.eqTypes)?"Graves":b==="h"||(i===n-1&&s.eqTypes)?"Agudos":"Medios "+(s.eqTypes?i:b)}
+function bandLetter(s,b){const i=s.eq.indexOf(b),n=s.eq.length;return i===0?"G":i===n-1?"A":String(s.eqTypes?i:b)}
 
-const LAYERS=[
-  {id:"in1",name:"1–16",ids:()=>range(1,16).map(n=>"ch"+n)},
-  {id:"in2",name:"17–32",ids:()=>range(17,32).map(n=>"ch"+n)},
-  {id:"in3",name:"33–40",ids:()=>range(33,40).map(n=>"ch"+n)},
-  {id:"aux",name:"Aux",ids:()=>range(1,8).map(n=>"aux"+n)},
-  {id:"bus",name:"Buses",ids:()=>range(1,16).map(n=>"bus"+n)},
-  {id:"out",name:"Salidas",ids:()=>[...range(1,4).map(n=>"main"+n),...range(1,8).map(n=>"mtx"+n)]},
-  {id:"dca",name:"DCA",ids:()=>range(1,16).map(n=>"dca"+n)},
-  {id:"custom",name:"Mi vista",ids:()=>(layout.custom||[]).filter(id=>BY[id])},
-];
+let LAYERS=[];
+function buildLayers(){LAYERS=[...MODEL.layers.map(l=>({id:l.id,name:l.name,ids:()=>l.ids})),
+  {id:"custom",name:"Mi vista",ids:()=>(layout.custom||[]).filter(id=>BY[id])}];
+  if(!LAYERS.some(l=>l.id===layer))layer=LAYERS[0].id}
 
 function stripKeys(s,bus){
   const k=s.id+".",p=[k+"name",k+"color",faderKey(s,bus),k+"mute"];
   if(s.solo)p.push(k+"solo");if(s.pan)p.push(k+"pan");
-  if(bus&&s.sends)p.push(`${k}send.${bus}.on`,`bus${bus}.color`);
-  if(s.eq.length){p.push(k+"eq.on");for(const b of s.eq)for(const x of["g","f","q"])p.push(`${k}eq.${b}.${x}`)}
+  if(bus&&s.sends)p.push(`${k}send.${bus}.on`,`${target(bus).id}.color`);
+  if(s.eq.length){p.push(k+"eq.on");for(const b of s.eq)for(const x of["g","f","q","type"])p.push(`${k}eq.${b}.${x}`)}
   if(s.inp)p.push(k+"lc",k+"lcf");
   if(s.gate)p.push(k+"gate.on");if(s.dyn)p.push(k+"dyn.on");
   return p;
@@ -98,7 +92,7 @@ function makeStrip(scope,s,{bus=0,detail=false}={}){
       <div class="track"><div class="fill"></div></div><div class="meter"><b></b><i></i></div><div class="fader-cap"></div></div>
     <div class="db"></div>`;
   const q=c=>el.querySelector(c),k=s.id+".";
-  const fk=faderKey(s,bus),sendOn=sendMode?`${k}send.${bus}.on`:null;
+  const fk=faderKey(s,bus),sendOn=sendMode&&SPEC[`${k}send.${bus}.on`]?`${k}send.${bus}.on`:null;
   const cv=q(".proc canvas");
 
   watch(scope,stripKeys(s,bus),()=>{
@@ -109,8 +103,8 @@ function makeStrip(scope,s,{bus=0,detail=false}={}){
     if(s.solo)q(".solo").classList.toggle("on",!!+S[k+"solo"]);
     if(s.pan){const p=+S[k+"pan"]/200+.5,b=q(".pan b");b.style.left=Math.min(50,p*100)+"%";b.style.width=Math.max(1.5,Math.abs(p-.5)*100)+"%";
       const r=Math.round(+S[k+"pan"]);q(".pan span").textContent=r===0?"C":r<0?"I"+(-r):"D"+r}
-    if(sendMode){const so=+S[sendOn];q(".sendon").classList.toggle("on",!!so);el.classList.toggle("sendoff",!so);
-      el.style.setProperty("--bus",colorOf(busStrip(bus)))}
+    if(sendMode){const so=sendOn?+S[sendOn]:1;q(".sendon").classList.toggle("on",!!so);el.classList.toggle("sendoff",!so);
+      q(".sendon").style.visibility=sendOn?"":"hidden";el.style.setProperty("--bus",colorOf(busStrip(bus)))}
     drawProc(s,cv,q(".tags"));
   });
   if(s.id===detailId&&!detail)el.classList.add("selected");
@@ -139,7 +133,7 @@ function drawProc(s,cv,tags){
     const on=+S[k+"eq.on"],pts=eqCurve(s,40);
     ctx.strokeStyle="#222";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
     ctx.beginPath();pts.forEach(([x,d],i)=>{const X_=x*w,Y=h/2-clamp(d,-18,18)/18*(h/2-3);i?ctx.lineTo(X_,Y):ctx.moveTo(X_,Y)});
-    const c=colorOf(s);ctx.strokeStyle=on?(c===COLORS[0]?"#e3101c":c):"#3a3a40";ctx.lineWidth=1.6;ctx.stroke()});
+    const c=colorOf(s);ctx.strokeStyle=on?(c===NOCOLOR?"#e3101c":c):"#3a3a40";ctx.lineWidth=1.6;ctx.stroke()});
 }
 
 /* ================================================================ arrastre (relativo, como en la app original) */
@@ -194,19 +188,20 @@ function renderDesk(){
     t.innerHTML=`<div style="margin:auto;text-align:center;color:var(--muted);font-size:13px;line-height:1.5"><b style="font-size:30px;color:var(--text)">＋</b><br>Elegir<br>canales</div>`;
     t.onclick=openLayerEditor;box.appendChild(t)}
   box.scrollLeft=0;
-  const ms=sendBus?busStrip(sendBus):BY.main1;
+  if(sendBus&&!target(sendBus)){sendBus=0;store("sendBus",0)}
+  const ms=sendBus?busStrip(sendBus):BY[MODEL.master];
   const mbox=$("#master");mbox.innerHTML="";mbox.appendChild(makeStrip("master",ms));
   const sel=$("#mixSel");sel.classList.toggle("busmode",!!sendBus);
   watch("desk",[ms.id+".name",ms.id+".color"],()=>{
-    $("#mixName").textContent=sendBus?`Bus ${sendBus} · ${nameOf(ms)}`:"Principal";
+    $("#mixName").textContent=sendBus?`${ms.label} · ${nameOf(ms)}`:"Principal";
     sel.style.setProperty("--bus",sendBus?colorOf(ms):"var(--red)");
     sel.querySelector("small").textContent=sendBus?"Mezcla de monitor":"Estás mezclando";
   });
 }
 function muteGroups(){
   const d=document.createElement("div");d.className="mgroups";d.innerHTML="<h4>Grupos de mute</h4>";
-  for(let g=1;g<=8;g++){const b=document.createElement("button"),k=`mg${g}.mute`,nk=`mg${g}.name`;
-    b.onclick=()=>tog(k);watch("desk",[k,nk],()=>{b.textContent=S[nk]||"Grupo "+g;b.classList.toggle("on",!!+S[k])});d.appendChild(b)}
+  for(let g=1;g<=MODEL.mgroups;g++){const b=document.createElement("button"),k=`mg${g}.mute`,nk=`mg${g}.name`;
+    b.onclick=()=>tog(k);watch("desk",SPEC[nk]?[k,nk]:[k],()=>{b.textContent=S[nk]||"Grupo "+g;b.classList.toggle("on",!!+S[k])});d.appendChild(b)}
   return d;
 }
 
@@ -290,13 +285,13 @@ function paneInput(s,pane){
   const wrap=h("div","inbig");const big=h("div","bigmeter");const m=meterEl();big.appendChild(m);addMeter("pane",s.id,0,m);wrap.appendChild(big);
   const col=h("div","incol");
   const ks=h("div","knobs left");
-  ks.appendChild(knob("pane",{label:"Ganancia",key:k+"gain",fmt:F.dbu}));
-  ks.appendChild(knob("pane",{label:"Ajuste fino",key:k+"trim",fmt:F.dbu}));
-  ks.appendChild(knob("pane",{label:"Quitar graves por debajo de",key:k+"lcf",fmt:F.hz}));
+  if(SPEC[k+"gain"])ks.appendChild(knob("pane",{label:"Ganancia",key:k+"gain",fmt:F.dbu}));
+  if(SPEC[k+"trim"])ks.appendChild(knob("pane",{label:"Ajuste fino",key:k+"trim",fmt:F.dbu}));
+  if(SPEC[k+"lcf"])ks.appendChild(knob("pane",{label:"Quitar graves por debajo de",key:k+"lcf",fmt:F.hz}));
   const row=h("div","btnrow");
-  row.appendChild(bigToggle("pane","Phantom 48V",k+"p48","p48"));
-  row.appendChild(bigToggle("pane","Quitar graves",k+"lc"));
-  row.appendChild(bigToggle("pane","Invertir fase",k+"invert"));
+  if(SPEC[k+"p48"])row.appendChild(bigToggle("pane","Phantom 48V",k+"p48","p48"));
+  if(SPEC[k+"lc"])row.appendChild(bigToggle("pane","Quitar graves",k+"lc"));
+  if(SPEC[k+"invert"])row.appendChild(bigToggle("pane","Invertir fase",k+"invert"));
   col.appendChild(ks);col.appendChild(row);
   col.appendChild(h("p","hint","<b>Phantom 48V</b>: solo para micrófonos de condensador y cajas DI activas. <b>Quitar graves</b>: limpia golpes y retumbes (útil en voces y guitarras)."));
   wrap.appendChild(col);pane.appendChild(wrap);
@@ -362,6 +357,7 @@ function biquad(type,f0,g,q,fs=48000){   // type: hp, ls, hs, pk
   const A=Math.pow(10,g/40),w=2*Math.PI*Math.min(f0,fs*.45)/fs,cs=Math.cos(w),sn=Math.sin(w);
   let al=sn/(2*q),b0,b1,b2,a0,a1,a2;
   if(type==="hp"){al=sn/(2*.707);b0=(1+cs)/2;b1=-(1+cs);b2=b0;a0=1+al;a1=-2*cs;a2=1-al}
+  else if(type==="lp"){al=sn/(2*.707);b0=(1-cs)/2;b1=1-cs;b2=b0;a0=1+al;a1=-2*cs;a2=1-al}
   else if(type==="ls"||type==="hs"){al=sn/(2*Math.min(q,1.2));const sq=2*Math.sqrt(A)*al;
     if(type==="ls"){b0=A*((A+1)-(A-1)*cs+sq);b1=2*A*((A-1)-(A+1)*cs);b2=A*((A+1)-(A-1)*cs-sq);a0=(A+1)+(A-1)*cs+sq;a1=-2*((A-1)+(A+1)*cs);a2=(A+1)+(A-1)*cs-sq}
     else{b0=A*((A+1)+(A-1)*cs+sq);b1=-2*A*((A-1)+(A+1)*cs);b2=A*((A+1)+(A-1)*cs-sq);a0=(A+1)-(A-1)*cs+sq;a1=2*((A-1)-(A+1)*cs);a2=(A+1)-(A-1)*cs-sq}}
@@ -371,8 +367,10 @@ function biquad(type,f0,g,q,fs=48000){   // type: hp, ls, hs, pk
 function magDb(c,f,fs=48000){const w=2*Math.PI*f/fs,c1=Math.cos(w),c2=Math.cos(2*w),s1=Math.sin(w),s2=Math.sin(2*w);
   const nr=c[0]+c[1]*c1+c[2]*c2,ni=c[1]*s1+c[2]*s2,dr=1+c[3]*c1+c[4]*c2,di=c[3]*s1+c[4]*s2;
   return 10*Math.log10((nr*nr+ni*ni)/(dr*dr+di*di)+1e-20)}
-const bandType=b=>b==="l"?"ls":b==="h"?"hs":"pk";
-function bandCoef(s,b){const p=`${s.id}.eq.${b}.`;return biquad(bandType(b),+S[p+"f"],+S[p+"g"],+S[p+"q"])}
+const XTYPES=["hp","ls","pk","pk","hs","lp"];
+const bandType=(s,b)=>s.eqTypes?XTYPES[+S[`${s.id}.eq.${b}.type`]]||"pk":b==="l"?"ls":b==="h"?"hs":"pk";
+const hasGain=t=>t!=="hp"&&t!=="lp";
+function bandCoef(s,b){const p=`${s.id}.eq.${b}.`;return biquad(bandType(s,b),+S[p+"f"],+S[p+"g"],+S[p+"q"])}
 function eqCurve(s,n,only){
   const cs=[];for(const b of s.eq)if(only==null||only===b)cs.push(bandCoef(s,b));
   if(only==null&&s.inp&&+S[s.id+".lc"])cs.push(biquad("hp",+S[s.id+".lcf"],0,.707));
@@ -386,21 +384,26 @@ function paneEq(s,pane){
   head(pane,"Ecualizador","Toca un punto y arrástralo: a la izquierda los graves, a la derecha los agudos; arriba sube, abajo baja.",reset,toggle("pane","Activado",k+"on"));
   const g=h("div","graph","<canvas></canvas>");g.style.minHeight="260px";pane.appendChild(g);
   const bands=h("div","chips bands");
-  s.eq.forEach((b,i)=>{const c=h("button","",bandName(b));c.style.setProperty("--bc",EQ_COL[i%EQ_COL.length]);c.classList.toggle("sel",b===eqBand);
+  s.eq.forEach((b,i)=>{const c=h("button","",bandName(s,b));c.style.setProperty("--bc",EQ_COL[i%EQ_COL.length]);c.classList.toggle("sel",b===eqBand);
     c.onclick=()=>{eqBand=b;renderPane(s)};bands.appendChild(c)});
+  const bp=`${k}${eqBand}.`;
+  if(s.eqTypes){const sp=h("span","");sp.style.flex="1";bands.appendChild(sp);
+    const types=h("div","chips");EQ_TYPE_NAMES.forEach((n,t)=>{const c=h("button","",n);c.onclick=()=>setP(bp+"type",t);types.appendChild(c)});
+    watch("pane",[bp+"type"],()=>[...types.children].forEach((c,t)=>c.classList.toggle("sel",t===+S[bp+"type"])));bands.appendChild(types)}
   pane.appendChild(bands);
-  const ks=h("div","knobs");const bp=`${k}${eqBand}.`;
+  const ks=h("div","knobs");
   ks.appendChild(knob("pane",{label:"Frecuencia",key:bp+"f",fmt:F.hz}));
   ks.appendChild(knob("pane",{label:"Subir / bajar",key:bp+"g",fmt:F.dbu,def:0}));
   ks.appendChild(knob("pane",{label:"Anchura",key:bp+"q",fmt:v=>(+v<1.5?"Ancha ":+v>4?"Estrecha ":"Media ")+(+v).toFixed(1)}));
   pane.appendChild(ks);
   const cv=g.querySelector("canvas");
-  const keys=[k+"on",s.id+".lc",s.id+".lcf"];for(const b of s.eq)for(const x of["g","f","q"])keys.push(`${k}${b}.${x}`);
+  const keys=[k+"on",s.id+".lc",s.id+".lcf"];for(const b of s.eq)for(const x of["g","f","q","type"])keys.push(`${k}${b}.${x}`);
   watch("pane",keys,()=>requestAnimationFrame(()=>drawEq(cv,s)));
   eqTouch(g,s);
 }
+const EQ_TYPE_NAMES=["Cortar graves","Estante graves","Campana","Campana suave","Estante agudos","Cortar agudos"];
 const EQ_COL=["#ff3b45","#ffb020","#34d27b","#1fc2d4","#2f7bf2","#c23be0","#ff5fb0","#e8e8ec"];
-function eqXY(s,b,w,hh){const p=`${s.id}.eq.${b}.`;return[hzX(+S[p+"f"])*w,hh/2-(+S[p+"g"])/18*(hh/2)]}
+function eqXY(s,b,w,hh){const p=`${s.id}.eq.${b}.`;return[hzX(+S[p+"f"])*w,hasGain(bandType(s,b))?hh/2-(+S[p+"g"])/18*(hh/2):hh/2]}
 function drawEq(cv,s){
   const r=fitCanvas(cv);if(!r)return;const[ctx,w,hh]=r,on=+S[s.id+".eq.on"];
   ctx.clearRect(0,0,w,hh);ctx.lineWidth=1;ctx.font="11px "+font();
@@ -420,7 +423,7 @@ function drawEq(cv,s){
   ctx.strokeStyle=on?"#ff2a36":"#6a6a72";ctx.lineWidth=3;ctx.shadowColor="#e3101c";ctx.shadowBlur=on?12:0;ctx.stroke();ctx.shadowBlur=0;
   s.eq.forEach((b,i)=>{const[x,y]=eqXY(s,b,w,hh),sel=b===eqBand,c=EQ_COL[i%EQ_COL.length];
     ctx.beginPath();ctx.arc(x,y,sel?16:13,0,7);ctx.fillStyle=sel?c:"#111";ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle=c;ctx.stroke();
-    ctx.fillStyle=sel?"#000":"#fff";ctx.font="bold 12px "+font();ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(b==="l"?"G":b==="h"?"A":b,x,y+1);
+    ctx.fillStyle=sel?"#000":"#fff";ctx.font="bold 12px "+font();ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(bandLetter(s,b),x,y+1);
     ctx.textAlign="left";ctx.textBaseline="alphabetic";ctx.font="11px "+font()});
   if(s.inp&&+S[s.id+".lc"]){const x=hzX(+S[s.id+".lcf"])*w;ctx.fillStyle="#8b8b93";ctx.fillText("Graves quitados hasta "+F.hz(S[s.id+".lcf"]),x+4,34)}
 }
@@ -442,7 +445,7 @@ function eqTouch(g,s){
     if(pinch&&pts.size>=2){const a=[...pts.values()],d=Math.abs(a[0].x-a[1].x)+1;setN(p+"q",pinch.q-Math.log(d/pinch.d)*.35);return}
     if(!start)return;
     setN(p+"f",start.f+(e.clientX-start.x)/r.width);
-    setP(p+"g",start.g-(e.clientY-start.y)/(r.height/2)*18);
+    if(hasGain(bandType(s,band)))setP(p+"g",start.g-(e.clientY-start.y)/(r.height/2)*18);
   });
   const up=e=>{pts.delete(e.pointerId);if(!pts.size&&band){const p=`${s.id}.eq.${band}.`;release(p+"f");release(p+"g");band=null;start=null;pinch=null}};
   g.addEventListener("pointerup",up);g.addEventListener("pointercancel",up);
@@ -453,16 +456,16 @@ function eqTouch(g,s){
 function paneSends(s,pane){
   head(pane,"Envíos a monitores","Cuánto de este canal va a cada bus (monitores, cascos, efectos).");
   const grid=h("div","sends");
-  for(let n=1;n<=16;n++){
-    const bs=busStrip(n),lk=`${s.id}.send.${n}.lvl`,ok=`${s.id}.send.${n}.on`;
-    const row=h("div","send",`<div class="who"><small>Bus ${n}</small><span></span></div><div class="hslider"><b></b></div><div class="val"></div><button class="on">ON</button>`);
-    watch("pane",[lk,ok,bs.id+".name",bs.id+".color"],()=>{
-      row.querySelector(".who").style.setProperty("--c",colorOf(bs));row.querySelector(".who span").textContent=S[bs.id+".name"]||"Bus "+n;
+  for(const{n}of MODEL.targets){
+    const bs=busStrip(n),lk=`${s.id}.send.${n}.lvl`,ok=SPEC[`${s.id}.send.${n}.on`]?`${s.id}.send.${n}.on`:null;
+    const row=h("div","send"+(ok?"":" noon"),`<div class="who"><small>${esc(bs.label)}</small><span></span></div><div class="hslider"><b></b></div><div class="val"></div><button class="on">ON</button>`);
+    watch("pane",[lk,ok,bs.id+".name",bs.id+".color"].filter(Boolean),()=>{
+      row.querySelector(".who").style.setProperty("--c",colorOf(bs));row.querySelector(".who span").textContent=S[bs.id+".name"]||bs.label;
       row.querySelector(".hslider b").style.width=(norm(lk)*100)+"%";row.querySelector(".val").textContent=F.db(S[lk]);
-      row.querySelector(".on").classList.toggle("on",!!+S[ok]);row.classList.toggle("off",!+S[ok])});
+      const on=ok?!!+S[ok]:true;row.querySelector(".on").classList.toggle("on",on);row.classList.toggle("off",!on)});
     const sl=row.querySelector(".hslider");
     dragH(sl,()=>norm(lk),v=>setN(lk,v),{start:()=>hold(lk),end:()=>release(lk),dbl:()=>setP(lk,0),travel:()=>sl.clientWidth});
-    row.querySelector(".on").onclick=()=>tog(ok);
+    row.querySelector(".on").onclick=()=>ok&&tog(ok);
     grid.appendChild(row);
   }
   pane.appendChild(grid);
@@ -473,9 +476,9 @@ function paneCfg(s,pane){
   head(pane,"Nombre y color","Así aparece el canal en la mesa y en todos los iPads.");
   const nk=s.id+".name",ck=s.id+".color";
   const inp=h("input","field");inp.maxLength=16;inp.placeholder=s.label;inp.style.maxWidth="420px";inp.value=S[nk]||"";
-  inp.oninput=()=>setP(nk,inp.value);pane.appendChild(inp);
+  inp.maxLength=MODEL.kind==="xair"?12:16;inp.oninput=()=>setP(nk,inp.value);pane.appendChild(inp);
   const cols=h("div","colors");
-  COLORS.forEach((c,i)=>{const b=h("button","",COLOR_NAMES[i]);b.style.cssText=`background:#0b0b0d;color:${i?c:"#8b8b93"};box-shadow:inset 0 6px 0 ${c}`;
+  MODEL.colors.forEach(([c,name],i)=>{const b=h("button","",name);b.style.cssText=`background:#0b0b0d;color:${i?c:"#8b8b93"};box-shadow:inset 0 6px 0 ${c}`;
     b.onclick=()=>setP(ck,i);cols.appendChild(b)});
   watch("pane",[ck],()=>[...cols.children].forEach((b,i)=>b.classList.toggle("sel",i===+S[ck])));
   pane.appendChild(h("h3","sec","Color"));pane.appendChild(cols);
@@ -486,12 +489,19 @@ function openSheet(id){$(id).classList.add("show")}
 function closeSheets(){document.querySelectorAll(".sheet.show").forEach(s=>s.classList.remove("show"))}
 document.querySelectorAll(".sheet").forEach(sh=>sh.addEventListener("pointerdown",e=>{if(e.target===sh||e.target.dataset.close!=null)closeSheets()}));
 
-let connMode="wing";
-function openConn(){connMode=status.mode&&status.mode!=="offline"?status.mode:"wing";$("#ip").value=status.ip||status.lastIp||"";paintConn();openSheet("#connSheet")}
-function paintConn(){document.querySelectorAll(".model").forEach(b=>b.classList.toggle("sel",b.dataset.mode===connMode));$("#ipBox").style.display=connMode==="wing"?"":"none"}
-document.querySelectorAll(".model").forEach(b=>b.onclick=()=>{connMode=b.dataset.mode;paintConn()});
+let connCard="rack",connDemo=false;
+const CARD_KIND={rack:"wing",wing:"wing",xr18:"xair"};
+function openConn(){connCard=load("card",status.kind==="xair"?"xr18":"rack");if(CARD_KIND[connCard]!==status.kind)connCard=status.kind==="xair"?"xr18":"rack";
+  connDemo=status.mode!=="live";paintConn();openSheet("#connSheet")}
+function paintConn(){document.querySelectorAll(".model").forEach(b=>b.classList.toggle("sel",b.dataset.card===connCard));
+  $("#demoSw").classList.toggle("on",connDemo);$("#ipBox").style.display=connDemo?"none":"";
+  const ip=$("#ip");if(!ip.dataset.edited)ip.value=(status.ips||{})[CARD_KIND[connCard]]||"";
+  $("#connectBtn").textContent=connDemo?"Probar sin mesa":"Conectar"}
+document.querySelectorAll(".model").forEach(b=>b.onclick=()=>{connCard=b.dataset.card;delete $("#ip").dataset.edited;paintConn()});
+$("#ip").oninput=()=>{$("#ip").dataset.edited=1};
+$("#demoSw").onclick=()=>{connDemo=!connDemo;paintConn()};
 $("#connBtn").onclick=openConn;
-$("#connectBtn").onclick=()=>{$("#connectBtn").textContent="Conectando…";send({t:"connect",mode:connMode,ip:$("#ip").value})};
+$("#connectBtn").onclick=()=>{store("card",connCard);$("#connectBtn").textContent="Conectando…";send({t:"connect",kind:CARD_KIND[connCard],demo:connDemo,ip:$("#ip").value})};
 $("#findBtn").onclick=()=>{$("#found").innerHTML='<div class="empty">Buscando la mesa en la red…</div>';send({t:"discover"})};
 
 function openMix(){
@@ -499,7 +509,7 @@ function openMix(){
   const mk=(n,label,sub,c)=>{const b=h("button",n?"":"lr",`${esc(label)}<small>${esc(sub)}</small>`);b.style.setProperty("--c",c);b.classList.toggle("sel",n===sendBus);
     b.onclick=()=>{sendBus=n;store("sendBus",n);closeSheets();renderDesk()};list.appendChild(b)};
   mk(0,"Principal","La mezcla que oye el público","var(--red)");
-  for(let n=1;n<=16;n++){const s=busStrip(n);mk(n,"Bus "+n,S[s.id+".name"]||"—",colorOf(s))}
+  for(const t of MODEL.targets){const s=BY[t.id];mk(t.n,s.label,S[s.id+".name"]||"—",colorOf(s))}
   openSheet("#mixSheet");
 }
 $("#mixSel").onclick=openMix;
@@ -507,7 +517,7 @@ $("#mixSel").onclick=openMix;
 function renderScenes(){
   const l=$("#sceneList");l.innerHTML="";
   if(!scenes.length){l.innerHTML='<div class="empty">Todavía no has guardado ninguna mezcla.</div>';return}
-  scenes.forEach((sc,i)=>{const it=h("div","item",`<span>${esc(sc.name)}<small>${esc(sc.time||"")}</small></span>`);
+  scenes.forEach(sc=>{const i=sc.i;const it=h("div","item",`<span>${esc(sc.name)}<small>${esc(sc.time||"")}</small></span>`);
     const ld=h("button","btn small red","Cargar"),del=h("button","btn small","Borrar");
     ld.onclick=()=>{if(ld.dataset.c){send({t:"sceneLoad",i});closeSheets();toast(`Mezcla «${sc.name}» cargada`)}else{ld.dataset.c=1;ld.textContent="¿Seguro?";setTimeout(()=>{delete ld.dataset.c;ld.textContent="Cargar"},2500)}};
     del.onclick=()=>{if(del.dataset.c)send({t:"sceneDelete",i});else{del.dataset.c=1;del.textContent="¿Seguro?";setTimeout(()=>{delete del.dataset.c;del.textContent="Borrar"},2500)}};
@@ -519,8 +529,8 @@ $("#helpBtn").onclick=()=>openSheet("#helpSheet");
 
 function openLayerEditor(){
   const box=$("#layerPick");box.innerHTML="";
-  const groups=[["Canales",STRIPS.filter(s=>s.kind==="ch")],["Aux",STRIPS.filter(s=>s.kind==="aux")],
-    ["Buses",STRIPS.filter(s=>s.kind==="bus")],["Salidas",STRIPS.filter(s=>s.kind==="main"||s.kind==="mtx")],["DCA",STRIPS.filter(s=>s.kind==="dca")]];
+  const groups=MODEL.layers.map(l=>[l.name==="1–16"?"Canales 1–16":l.name,l.ids.map(id=>BY[id])]).concat(
+    [[MODEL.kind==="wing"?"":"Principal",[BY[MODEL.master]].filter(s=>!MODEL.layers.some(l=>l.ids.includes(s.id)))]]).filter(g=>g[1].length);
   for(const[t,list]of groups){box.appendChild(h("h3","sec",t));const g=h("div","pick");
     for(const s of list){const b=h("button","",esc(S[s.id+".name"]||s.label));b.style.setProperty("--c",colorOf(s));
       const paint=()=>{const i=layout.custom.indexOf(s.id);b.classList.toggle("sel",i>=0);b.dataset.n=i>=0?i+1:""};paint();
@@ -548,17 +558,20 @@ function connectWs(){
       case"m":M=m.v;break;
       case"upd":{const ch=[];for(const p in m.v)if(!active.has(p)){S[p]=m.v[p];ch.push(p)}notify(ch);break}
       case"state":S=m.v;notifyAll();break;
-      case"model":STRIPS=m.strips;SPEC=m.spec;BY={};STRIPS.forEach(s=>BY[s.id]=s);break;
+      case"model":{const was=MODEL.kind;MODEL=m;STRIPS=m.strips;SPEC=m.spec;BY={};STRIPS.forEach(s=>BY[s.id]=s);
+        layout={custom:[]};buildLayers();if(was&&was!==m.kind){closeDetail();closeSheets();sendBus=0;store("sendBus",0)}
+        if(status.t){renderLayers();renderDesk()}break}
       case"status":{const first=!status.t;status=m;const d=$("#connDot");d.className="conn-dot"+(m.mode==="demo"?" demo":m.connected?" on":"");
         document.body.classList.toggle("nometers",!m.meters);if(!m.meters)M={};
         $("#lanUrl").textContent=m.url;$("#connInfo").textContent=m.mode==="offline"?"Elige tu mesa. Con «Demo» puedes probarlo todo sin mesa.":
           m.connected?`Conectado a: ${m.info}`:`La mesa no responde${m.ip?" ("+m.ip+")":""}. Reintentando…`;
-        $("#connState").textContent=m.mode==="demo"?"Demo":m.connected?"Conectado":"Sin mesa";
-        if(first){renderLayers();renderDesk();if(m.mode==="offline")openConn()}
-        else if(m.mode==="wing"&&!m.connected)toast("Se ha perdido la conexión con la mesa");break}
+        $("#connState").textContent=m.mode==="demo"?"Demo":m.connected?(m.kind==="xair"?"XR18":"WING"):"Sin mesa";
+        if(first){renderLayers();renderDesk();if(m.mode==="demo"&&!load("seen",""))openConn(),store("seen",1)}
+        else if(m.mode==="live"&&!m.connected)toast("Se ha perdido la conexión con la mesa");break}
       case"connectResult":$("#connectBtn").textContent="Conectar";if(m.ok){closeSheets();toast("Conectado")}else toast(m.msg);break;
-      case"found":{const f=$("#found");f.innerHTML="";if(!m.v.length)f.innerHTML='<div class="empty">No he encontrado ninguna WING. Escribe su IP (en la mesa: Setup → Network).</div>';
-        m.v.forEach(x=>{const b=h("button","",`${esc(x.name)} <small>${esc(x.model)} · ${esc(x.ip)}</small>`);b.onclick=()=>{$("#ip").value=x.ip;connMode="wing";paintConn()};f.appendChild(b)});break}
+      case"found":{const f=$("#found");f.innerHTML="";if(!m.v.length)f.innerHTML='<div class="empty">No he encontrado ninguna mesa. Comprueba que el ordenador está en la misma red y escribe la IP a mano.</div>';
+        m.v.forEach(x=>{const b=h("button","",`${esc(x.name)} <small>${esc(x.model)} · ${esc(x.ip)}</small>`);
+          b.onclick=()=>{connCard=x.kind==="xair"?"xr18":(connCard==="wing"?"wing":"rack");connDemo=false;paintConn();$("#ip").value=x.ip;$("#ip").dataset.edited=1};f.appendChild(b)});break}
       case"scenes":scenes=m.v;renderScenes();break;
       case"layout":layout=Object.assign({custom:[]},m.v||{});if(!Array.isArray(layout.custom))layout.custom=[];layout.custom=layout.custom.filter(id=>BY[id]);if(layer==="custom"&&status.t)renderDesk();break;
     }};

@@ -6,7 +6,7 @@ Un pequeño servidor en tu ordenador habla con la mesa por la red (OSC/UDP)
 y sirve la interfaz táctil: ábrela en el iPad con Safari en la dirección que
 muestra la app (mismo Wi-Fi), o en la ventana del propio ordenador.
 
-Mesas:  Behringer WING Rack (y WING / WING Compact)  ·  Demo (sin mesa)
+Mesas:  Behringer WING Rack, WING y WING Compact  ·  Behringer XR18 (X Air)  ·  Demo (sin mesa)
 
 Requisitos:  Python 3.9+  (sin librerías externas; pywebview es opcional)
 Ejecutar:    python mbmix.py            -> abre ventana / navegador
@@ -32,6 +32,7 @@ CONFIG_PATH = Path.home() / ".mbmix.json"
 WEB_DIR = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "web")
 WING_OSC_PORT = 2223       # OSC de la WING
 WING_INFO_PORT = 2222      # descubrimiento ("WING?")
+XAIR_PORT = 10024          # OSC de la XR18 / X Air
 
 
 # ---------------------------------------------------------------- OSC ----
@@ -85,33 +86,105 @@ def osc_decode(pkt):
         return None
 
 
-# ------------------------------------------------------ MODELO WING ----
-# Cada parámetro tiene una clave propia ("ch1.fader", "bus3.eq.2.g"...) con su valor
-# en unidades reales (dB, Hz, ms). spec = [tipo, mín, máx, curva, defecto]
-#   tipo: n (número), b (sí/no), s (texto), i (entero)   curva: lin, log, fdr (fader)
-EQ_SMALL = ["l", "1", "2", "3", "4", "h"]                 # canales y aux: grave + 4 medios + agudo
-EQ_BIG = ["l", "1", "2", "3", "4", "5", "6", "h"]          # buses, main y matrices
+# ----------------------------------------------------------- MODELOS ----
+# La interfaz trabaja siempre con claves propias ("ch1.fader", "bus3.eq.2.g"...) en
+# unidades reales (dB, Hz, ms). Cada modelo de mesa dice dónde está cada parámetro
+# en su protocolo y cómo convertir el valor.
+#   spec = [tipo, mín, máx, curva, defecto(, lista)]
+#   tipo: n (número), b (sí/no), s (texto), i (entero)   curva: lin, log, log1, fdr, enum
+
+def x32_fader_pos(db):
+    """Ley de fader de Behringer (X32 / X Air): dB -> posición 0..1."""
+    if db >= -10:
+        return (db + 30) / 40
+    if db >= -30:
+        return (db + 50) / 80
+    if db >= -60:
+        return (db + 70) / 160
+    if db > -90:
+        return (db + 90) / 480
+    return 0.0
+
+
+def x32_fader_db(f):
+    if f >= 0.5:
+        return f * 40 - 30
+    if f >= 0.25:
+        return f * 80 - 50
+    if f >= 0.0625:
+        return f * 160 - 70
+    return f * 480 - 90 if f > 0 else -144.0
+
+
+def conv_lin(lo, hi):
+    return (lambda v: (v - lo) / (hi - lo)), (lambda x: lo + x * (hi - lo))
+
+
+def conv_log(lo, hi):
+    r = math.log(hi / lo)
+    return (lambda v: math.log(max(1e-9, v) / lo) / r), (lambda x: lo * math.exp(x * r))
+
+
+def conv_enum(values):
+    return (lambda v: min(range(len(values)), key=lambda i: abs(values[i] - v))), (lambda x: values[int(x)])
+
+
+CONV_FADER = (x32_fader_pos, x32_fader_db)
+CONV_INV = ((lambda v: 0 if v else 1), (lambda x: 0 if x else 1))     # mute <-> "on"
+CONV_PAN = conv_lin(-100, 100)
+
+
+class Model:
+    """Descripción de una mesa: tiras, parámetros, rutas OSC y conversiones."""
+
+    def __init__(self, kind, name):
+        self.kind, self.name = kind, name
+        self.strips, self.spec, self.path, self.conv, self.otype = [], {}, {}, {}, {}
+        self.layers, self.targets, self.colors = [], [], []
+        self.master, self.mgroups = "", 0
+
+    def p(self, key, path, typ, lo=0, hi=1, curve="lin", default=0, conv=None, otype=None, values=None):
+        self.spec[key] = [typ, lo, hi, curve, default] + ([values] if values else [])
+        if path:
+            self.path[key] = path
+        if conv:
+            self.conv[key] = conv
+        self.otype[key] = otype or {"s": "s", "b": "i", "i": "i"}.get(typ, "f")
+
+    def add_strip(self, sid, kind, label, **feat):
+        st = {"id": sid, "kind": kind, "label": label, "eq": [], "eqTypes": False, "gate": False, "dyn": False,
+              "sends": False, "pan": True, "inp": False, "trim": False, "solo": True}
+        st.update(feat)
+        self.strips.append(st)
+        return st
+
+    def describe(self):
+        return {"t": "model", "kind": self.kind, "name": self.name, "strips": self.strips, "spec": self.spec,
+                "layers": self.layers, "targets": self.targets, "colors": self.colors, "master": self.master,
+                "mgroups": self.mgroups}
+
+
+# ---------------------------------------------------- Behringer WING ----
+WING_COLORS = [["#4a4a52", "Ninguno"], ["#7b8fb0", "Gris azul"], ["#2f7bf2", "Azul"], ["#3346c8", "Azul oscuro"],
+               ["#1fc2d4", "Turquesa"], ["#2fbf5b", "Verde"], ["#8fae2a", "Oliva"], ["#f2c230", "Amarillo"],
+               ["#ff8a1f", "Naranja"], ["#e3101c", "Rojo"], ["#ff6b5a", "Coral"], ["#ff5fb0", "Rosa"],
+               ["#b06ad8", "Malva"]]
+EQ_WING_SMALL = ["l", "1", "2", "3", "4", "h"]                 # canales y aux: grave + 4 medios + agudo
+EQ_WING_BIG = ["l", "1", "2", "3", "4", "5", "6", "h"]          # buses, main y matrices
 
 
 def build_wing():
-    strips, spec, path = [], {}, {}
+    m = Model("wing", "Behringer WING")
+    m.colors, m.master, m.mgroups = WING_COLORS, "main1", 8
 
-    def p(key, wpath, typ, lo=0, hi=1, curve="lin", default=0):
-        spec[key] = [typ, lo, hi, curve, default]
-        if wpath:
-            path[key] = wpath
-
-    def strip(sid, kind, label, base, *, eq=None, gate=False, dyn=False, sends=False, pan=True,
-              inp=False, solo=True):
-        strips.append({"id": sid, "kind": kind, "label": label, "eq": eq or [], "gate": gate, "dyn": dyn,
-                       "sends": sends, "pan": pan, "inp": inp, "solo": solo})
-        k = sid + "."
+    def strip(sid, kind, label, base, *, eq=None, gate=False, dyn=False, sends=False, pan=True, inp=False):
+        m.add_strip(sid, kind, label, eq=eq or [], gate=gate, dyn=dyn, sends=sends, pan=pan, inp=inp, trim=inp)
+        k, p = sid + ".", m.p
         p(k + "name", base + "/name", "s", default="")
         p(k + "color", base + "/col", "i", 0, 12, default=0)
         p(k + "fader", base + "/fdr", "n", -144, 10, "fdr", -144.0 if kind in ("ch", "aux", "mtx") else 0.0)
         p(k + "mute", base + "/mute", "b", default=0)
-        if solo:
-            p(k + "solo", base + "/$solo", "b", default=0)
+        p(k + "solo", base + "/$solo", "b", default=0)
         if pan:
             p(k + "pan", base + "/pan", "n", -100, 100, default=0.0)
         if inp:
@@ -143,8 +216,7 @@ def build_wing():
             p(d + "mix", base + "/dyn/mix", "n", 0, 100, default=100.0)
         if eq:
             p(k + "eq.on", base + "/eq/on", "b")
-            freqs = ([80, 250, 800, 2500, 6000, 10000] if len(eq) == 6 else
-                     [80, 150, 300, 700, 1500, 3500, 7000, 10000])
+            freqs = [80, 250, 800, 2500, 6000, 10000] if len(eq) == 6 else [80, 150, 300, 700, 1500, 3500, 7000, 10000]
             for b, f in zip(eq, freqs):
                 p(f"{k}eq.{b}.g", f"{base}/eq/{b}g", "n", -15, 15, default=0.0)
                 p(f"{k}eq.{b}.f", f"{base}/eq/{b}f", "n", 20, 20000, "log", float(f))
@@ -155,33 +227,138 @@ def build_wing():
                 p(f"{k}send.{b}.on", f"{base}/send/{b}/on", "b", default=1)
 
     for n in range(1, 41):
-        strip(f"ch{n}", "ch", f"Canal {n}", f"/ch/{n}", eq=EQ_SMALL, gate=True, dyn=True, sends=True, inp=True)
+        strip(f"ch{n}", "ch", f"Canal {n}", f"/ch/{n}", eq=EQ_WING_SMALL, gate=True, dyn=True, sends=True, inp=True)
     for n in range(1, 9):
-        strip(f"aux{n}", "aux", f"Aux {n}", f"/aux/{n}", eq=EQ_SMALL, dyn=True, sends=True, inp=True)
+        strip(f"aux{n}", "aux", f"Aux {n}", f"/aux/{n}", eq=EQ_WING_SMALL, dyn=True, sends=True, inp=True)
     for n in range(1, 17):
-        strip(f"bus{n}", "bus", f"Bus {n}", f"/bus/{n}", eq=EQ_BIG, dyn=True)
+        strip(f"bus{n}", "bus", f"Bus {n}", f"/bus/{n}", eq=EQ_WING_BIG, dyn=True)
     for n in range(1, 5):
-        strip(f"main{n}", "main", f"Main {n}", f"/main/{n}", eq=EQ_BIG, dyn=True)
+        strip(f"main{n}", "main", f"Main {n}", f"/main/{n}", eq=EQ_WING_BIG, dyn=True)
     for n in range(1, 9):
-        strip(f"mtx{n}", "mtx", f"Matriz {n}", f"/mtx/{n}", eq=EQ_BIG, dyn=True)
+        strip(f"mtx{n}", "mtx", f"Matriz {n}", f"/mtx/{n}", eq=EQ_WING_BIG, dyn=True)
     for n in range(1, 17):
         strip(f"dca{n}", "dca", f"DCA {n}", f"/dca/{n}", pan=False)
     for g in range(1, 9):
-        p(f"mg{g}.mute", f"/mgrp/{g}/mute", "b")
-        p(f"mg{g}.name", f"/mgrp/{g}/name", "s", default="")
-    return strips, spec, path
+        m.p(f"mg{g}.mute", f"/mgrp/{g}/mute", "b")
+        m.p(f"mg{g}.name", f"/mgrp/{g}/name", "s", default="")
+    m.targets = [{"n": b, "id": f"bus{b}"} for b in range(1, 17)]
+    ids = lambda pre, a, b: [f"{pre}{i}" for i in range(a, b + 1)]
+    m.layers = [{"id": "in1", "name": "1–16", "ids": ids("ch", 1, 16)},
+                {"id": "in2", "name": "17–32", "ids": ids("ch", 17, 32)},
+                {"id": "in3", "name": "33–40", "ids": ids("ch", 33, 40)},
+                {"id": "aux", "name": "Aux", "ids": ids("aux", 1, 8)},
+                {"id": "bus", "name": "Buses", "ids": ids("bus", 1, 16)},
+                {"id": "out", "name": "Salidas", "ids": ids("main", 1, 4) + ids("mtx", 1, 8)},
+                {"id": "dca", "name": "DCA", "ids": ids("dca", 1, 16)}]
+    return m
 
 
-# Nombres y colores de ejemplo para el modo demo (colores WING 1..12)
+# ------------------------------------------- Behringer XR18 (X Air) ----
+XAIR_COLORS = [["#4a4a52", "Ninguno"], ["#e3101c", "Rojo"], ["#2fbf5b", "Verde"], ["#f2c230", "Amarillo"],
+               ["#2f7bf2", "Azul"], ["#c23be0", "Magenta"], ["#1fc2d4", "Cian"], ["#e8e8ec", "Blanco"]]
+XAIR_RATIOS = [1.1, 1.3, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0, 20.0, 100.0]
+XAIR_SOLO = {}
+
+
+def build_xair():
+    m = Model("xair", "Behringer XR18")
+    m.colors, m.master, m.mgroups = XAIR_COLORS, "lr", 4
+    p = m.p
+
+    def strip(sid, kind, label, base, solo, *, eq=0, gate=False, dyn=False, sends=False, pan=True, inp=None):
+        bands = [str(i) for i in range(1, eq + 1)]
+        m.add_strip(sid, kind, label, eq=bands, eqTypes=bool(eq), gate=gate, dyn=dyn, sends=sends, pan=pan,
+                    inp=inp is not None, solo=solo is not None)
+        k = sid + "."
+        dca = kind == "dca"
+        p(k + "name", base + "/config/name", "s", default="")
+        p(k + "color", base + "/config/color", "i", 0, 7, default=0)
+        mix = base if dca else base + "/mix"
+        p(k + "fader", mix + "/fader", "n", -144, 10, "fdr", -144.0 if kind in ("ch", "aux", "fxrtn") else 0.0,
+          conv=CONV_FADER)
+        p(k + "mute", mix + "/on", "b", conv=CONV_INV)
+        if solo is not None:
+            p(k + "solo", f"/-stat/solosw/{solo:02d}", "b")
+        if pan:
+            p(k + "pan", mix + "/pan", "n", -100, 100, default=0.0, conv=CONV_PAN)
+        if inp is not None:
+            h = f"/headamp/{inp:02d}"
+            p(k + "gain", h + "/gain", "n", -12, 60, default=0.0, conv=conv_lin(-12, 60))
+            p(k + "p48", h + "/phantom", "b")
+            p(k + "invert", base + "/preamp/invert", "b")
+            p(k + "lc", base + "/preamp/hpon", "b")
+            p(k + "lcf", base + "/preamp/hpf", "n", 20, 400, "log", 100.0, conv=conv_log(20, 400))
+        if gate:
+            g, gp = k + "gate.", base + "/gate/"
+            p(g + "on", gp + "on", "b")
+            p(g + "thr", gp + "thr", "n", -80, 0, default=-40.0, conv=conv_lin(-80, 0))
+            p(g + "range", gp + "range", "n", 3, 60, default=30.0, conv=conv_lin(3, 60))
+            p(g + "att", gp + "attack", "n", 0, 120, default=0.0, conv=conv_lin(0, 120))
+            p(g + "hld", gp + "hold", "n", 0.02, 2000, "log", 50.0, conv=conv_log(0.02, 2000))
+            p(g + "rel", gp + "release", "n", 5, 4000, "log", 200.0, conv=conv_log(5, 4000))
+        if dyn:
+            d, dp = k + "dyn.", base + "/dyn/"
+            p(d + "on", dp + "on", "b")
+            p(d + "thr", dp + "thr", "n", -60, 0, default=-15.0, conv=conv_lin(-60, 0))
+            p(d + "ratio", dp + "ratio", "n", 1.1, 100, "enum", 3.0, conv=conv_enum(XAIR_RATIOS), otype="i",
+              values=XAIR_RATIOS)
+            p(d + "knee", dp + "knee", "n", 0, 5, default=1.0, conv=conv_lin(0, 5))
+            p(d + "att", dp + "attack", "n", 0, 120, default=10.0, conv=conv_lin(0, 120))
+            p(d + "rel", dp + "release", "n", 5, 4000, "log", 150.0, conv=conv_log(5, 4000))
+            p(d + "gain", dp + "mgain", "n", 0, 24, default=0.0, conv=conv_lin(0, 24))
+            p(d + "mix", dp + "mix", "n", 0, 100, default=100.0, conv=conv_lin(0, 100))
+        if eq:
+            p(k + "eq.on", base + "/eq/on", "b")
+            freqs = [100, 500, 2000, 8000] if eq == 4 else [80, 200, 500, 1500, 4000, 10000]
+            for i, f in enumerate(freqs, 1):
+                e = f"{base}/eq/{i}/"
+                typ = 1 if i == 1 else 4 if i == eq else 2
+                p(f"{k}eq.{i}.type", e + "type", "i", 0, 5, default=typ)
+                p(f"{k}eq.{i}.f", e + "f", "n", 20, 20000, "log", float(f), conv=conv_log(20, 20000))
+                p(f"{k}eq.{i}.g", e + "g", "n", -15, 15, default=0.0, conv=conv_lin(-15, 15))
+                p(f"{k}eq.{i}.q", e + "q", "n", 0.3, 10, "log", 2.0, conv=conv_log(10, 0.3))
+        if sends:
+            for b in range(1, 11):
+                p(f"{k}send.{b}.lvl", f"{mix}/{b:02d}/level", "n", -144, 10, "fdr", -144.0, conv=CONV_FADER)
+
+    for n in range(1, 17):
+        strip(f"ch{n}", "ch", f"Canal {n}", f"/ch/{n:02d}", n, eq=4, gate=True, dyn=True, sends=True, inp=n)
+    strip("aux1", "aux", "Aux 17-18", "/rtn/aux", 17, sends=True)
+    for n in range(1, 5):
+        strip(f"fx{n}", "fxrtn", f"Retorno FX {n}", f"/rtn/{n}", 17 + n, sends=True)
+    for n in range(1, 7):
+        strip(f"bus{n}", "bus", f"Bus {n}", f"/bus/{n}", 21 + n, eq=6, dyn=True)
+    for n in range(1, 5):
+        strip(f"fxs{n}", "fxsend", f"Envío FX {n}", f"/fxsend/{n}", 27 + n, pan=False)
+    strip("lr", "main", "Principal L/R", "/lr", 32, eq=6, dyn=True)
+    for n in range(1, 5):
+        strip(f"dca{n}", "dca", f"DCA {n}", f"/dca/{n}", None, pan=False)
+    for g in range(1, 5):
+        p(f"mg{g}.mute", f"/config/mute/{g}", "b")
+    m.targets = [{"n": b, "id": f"bus{b}"} for b in range(1, 7)] + [{"n": 6 + f, "id": f"fxs{f}"} for f in range(1, 5)]
+    m.layers = [{"id": "in1", "name": "1–16", "ids": [f"ch{i}" for i in range(1, 17)]},
+                {"id": "rtn", "name": "Aux · FX", "ids": ["aux1"] + [f"fx{i}" for i in range(1, 5)]},
+                {"id": "bus", "name": "Buses", "ids": [f"bus{i}" for i in range(1, 7)] + [f"fxs{i}" for i in range(1, 5)]},
+                {"id": "dca", "name": "DCA", "ids": [f"dca{i}" for i in range(1, 5)]}]
+    return m
+
+
+MODELS = {"wing": build_wing, "xair": build_xair}
+MODEL_NAMES = {"wing": "Behringer WING", "xair": "Behringer XR18"}
+
+# Nombres de ejemplo para el modo demo: (nombre, color en WING, color en X Air)
 DEMO_NAMES = {
-    "ch1": ("Bombo", 9), "ch2": ("Caja", 9), "ch3": ("Charles", 9), "ch4": ("Tom 1", 9), "ch5": ("Tom 2", 9),
-    "ch6": ("Base", 9), "ch7": ("Aéreo I", 9), "ch8": ("Aéreo D", 9), "ch9": ("Bajo", 2), "ch10": ("Guitarra 1", 7),
-    "ch11": ("Guitarra 2", 7), "ch12": ("Teclado I", 12), "ch13": ("Teclado D", 12), "ch14": ("Acústica", 8),
-    "ch15": ("Voz MB", 4), "ch16": ("Coro 1", 5), "ch17": ("Coro 2", 5), "ch18": ("Coro 3", 5),
-    "aux1": ("Ordenador", 1), "aux2": ("Reverb", 11), "aux3": ("Delay", 11),
-    "bus1": ("Mon Batería", 9), "bus2": ("Mon Bajo", 2), "bus3": ("Mon Guitarra", 7), "bus4": ("Mon Voz", 4),
-    "bus5": ("Cascos MB I", 5), "bus6": ("Cascos MB D", 5), "main1": ("Principal", 1),
-    "dca1": ("Batería", 9), "dca2": ("Voces", 4), "dca3": ("Banda", 7), "dca4": ("Efectos", 11),
+    "ch1": ("Bombo", 9, 1), "ch2": ("Caja", 9, 1), "ch3": ("Charles", 9, 1), "ch4": ("Tom 1", 9, 1),
+    "ch5": ("Tom 2", 9, 1), "ch6": ("Base", 9, 1), "ch7": ("Aéreo I", 9, 1), "ch8": ("Aéreo D", 9, 1),
+    "ch9": ("Bajo", 2, 4), "ch10": ("Guitarra 1", 7, 3), "ch11": ("Guitarra 2", 7, 3), "ch12": ("Teclado I", 12, 5),
+    "ch13": ("Teclado D", 12, 5), "ch14": ("Acústica", 8, 3), "ch15": ("Voz MB", 4, 6), "ch16": ("Coro 1", 5, 2),
+    "ch17": ("Coro 2", 5, 2), "ch18": ("Coro 3", 5, 2),
+    "aux1": ("Ordenador", 1, 7), "aux2": ("Reverb", 11, 5), "fx1": ("Reverb", 11, 5), "fx2": ("Delay", 11, 5),
+    "bus1": ("Mon Batería", 9, 1), "bus2": ("Mon Bajo", 2, 4), "bus3": ("Mon Guitarra", 7, 3),
+    "bus4": ("Mon Voz", 4, 6), "bus5": ("Cascos MB I", 5, 2), "bus6": ("Cascos MB D", 5, 2),
+    "fxs1": ("Reverb", 11, 5), "fxs2": ("Delay", 11, 5),
+    "main1": ("Principal", 1, 7), "lr": ("Principal", 1, 7),
+    "dca1": ("Batería", 9, 1), "dca2": ("Voces", 4, 6), "dca3": ("Banda", 7, 3), "dca4": ("Efectos", 11, 5),
     "mg1": ("Banda",), "mg2": ("Efectos",),
 }
 
@@ -196,45 +373,51 @@ class Mixer:
 
     def __init__(self, hub):
         self.hub = hub
-        self.strips, self.spec, self.path = build_wing()
-        self.by_path = {v: k for k, v in self.path.items()}
-        self.values = self.defaults()
-        self.mode = "offline"        # offline / demo / wing
+        self.mode = "offline"        # offline / demo / live
         self.ip = ""
         self.info = ""
         self.connected = False
         self.transport = None
         self.last_rx = 0.0
-        self.meters = {s["id"]: [0.0, 1.0, 1.0] for s in self.strips}   # nivel, GR puerta, GR compresor
         self.has_meters = False
+        self.use_model("wing")
 
-    def defaults(self):
-        return {k: v[4] for k, v in self.spec.items()}
+    def use_model(self, kind):
+        self.model = MODELS.get(kind, build_wing)()
+        self.kind = self.model.kind
+        self.strips, self.spec, self.path = self.model.strips, self.model.spec, dict(self.model.path)
+        self.by_path = {v: k for k, v in self.path.items()}
+        self.values = {k: v[4] for k, v in self.spec.items()}
+        self.meters = {s["id"]: [0.0, 1.0, 1.0] for s in self.strips}   # nivel, GR puerta, GR compresor
 
     # ---- red ----
-    async def connect(self, mode, ip=""):
+    async def connect(self, kind, demo, ip=""):
         await self.disconnect()
-        self.mode, self.ip = mode, ip.strip()
-        self.values = self.defaults()
-        self.meters = {s["id"]: [0.0, 1.0, 1.0] for s in self.strips}
-        if mode == "demo":
+        self.use_model(kind)
+        self.ip = ip.strip()
+        if demo:
+            self.mode = "demo"
             self._demo_setup()
-            self.connected, self.info, self.has_meters = True, "Mesa de demostración (WING Rack)", True
+            self.connected, self.has_meters = True, True
+            self.info = f"Demo · {MODEL_NAMES[self.kind]}"
             return {"ok": True}
-        if mode != "wing":
-            self.connected = False
-            return {"ok": True}
+        self.mode = "live"
         if not self.ip:
+            self.mode = "offline"
             return {"ok": False, "msg": "Escribe la dirección IP de la mesa."}
-        self.has_meters = False
+        port = WING_OSC_PORT if self.kind == "wing" else XAIR_PORT
         loop = asyncio.get_running_loop()
         try:
             self.transport, _ = await loop.create_datagram_endpoint(
-                lambda: _OscProtocol(self), remote_addr=(self.ip, WING_OSC_PORT))
+                lambda: _OscProtocol(self), remote_addr=(self.ip, port))
         except OSError as e:
+            self.mode = "offline"
             return {"ok": False, "msg": f"No se pudo abrir la conexión: {e}"}
-        self.send("/?")
-        self.send("/ch/1/name")
+        if self.kind == "wing":
+            self.send("/?")
+            self.send("/ch/1/name")
+        else:
+            self.send("/xinfo")
         for _ in range(30):                       # espera respuesta (3 s)
             await asyncio.sleep(0.1)
             if self.connected:
@@ -242,11 +425,13 @@ class Mixer:
         if not self.connected:
             self.transport.close()
             self.transport = None
-            return {"ok": False, "msg": f"La mesa no responde en {self.ip}. Revisa la IP y que el ordenador "
-                                        "esté en la misma red que la WING."}
+            self.mode = "offline"
+            return {"ok": False, "msg": f"La mesa no responde en {self.ip}. Revisa la IP, que hayas elegido el "
+                                        "modelo correcto y que el ordenador esté en la misma red que la mesa."}
         if not self.info:
-            self.info = f"WING · {self.ip}"
-        self.send("/*S")                          # recibir los cambios hechos en la mesa
+            self.info = f"{MODEL_NAMES[self.kind]} · {self.ip}"
+        self.has_meters = self.kind == "xair"     # la WING no da vúmetros por OSC
+        self._subscribe()
         asyncio.ensure_future(self._query_all())
         return {"ok": True}
 
@@ -261,6 +446,13 @@ class Mixer:
         if self.transport is not None:
             self.transport.sendto(osc_encode(addr, *args))
 
+    def _subscribe(self):
+        if self.kind == "wing":
+            self.send("/*S")                      # recibir los cambios hechos en la mesa
+        else:
+            self.send("/xremote")
+            self.send("/meters", "/meters/1")
+
     async def _query_all(self):
         """Pide a la mesa el valor de todos los parámetros."""
         for i, wpath in enumerate(list(self.path.values())):
@@ -270,14 +462,15 @@ class Mixer:
             if i % 20 == 19:
                 await asyncio.sleep(0.02)
         await asyncio.sleep(0.6)
-        for s in self.strips:
-            if s["inp"]:
-                self._map_source(s["id"])
-        await asyncio.sleep(0.4)
+        if self.kind == "wing":
+            for s in self.strips:
+                if s["inp"]:
+                    self._map_source(s["id"])
+            await asyncio.sleep(0.4)
         self.hub.broadcast({"t": "state", "v": self.values})
 
     def _map_source(self, sid):
-        """La ganancia y los 48V están en la entrada física conectada al canal."""
+        """WING: la ganancia y los 48V están en la entrada física conectada al canal."""
         grp, n = self.values.get(sid + ".src.grp"), self.values.get(sid + ".src.in")
         for k in ("gain", "p48"):
             old = self.path.pop(f"{sid}.{k}", None)
@@ -297,59 +490,102 @@ class Mixer:
         if addr == "/?" and args and isinstance(args[0], str) and args[0].startswith("WING"):
             parts = args[0].split(",")
             if len(parts) >= 4:
-                self.info = f"WING {parts[3]} · {parts[2]} · {parts[1]}"
+                self.info = f"WING ({parts[3]}) · {parts[2]} · {parts[1]}"
+            return
+        if addr == "/xinfo" and len(args) >= 4:
+            self.info = f"{args[2]} · {args[1]} · {args[0]}"
+            return
+        if addr == "/meters/1" and args and isinstance(args[0], bytes):
+            self._xair_meters(args[0])
             return
         key = self.by_path.get(addr)
         if key is None or not args:
             return
         typ = self.spec[key][0]
-        nums = [a for a in args if isinstance(a, (int, float))]
-        if typ == "s":
-            v = str(args[0])
-        elif nums:
-            v = nums[-1]
-            v = int(round(v)) if typ in ("b", "i") else float(v)
+        if self.kind == "wing":                  # la WING responde ,sff: texto, normalizado, valor real
+            nums = [a for a in args if isinstance(a, (int, float))]
+            raw = str(args[0]) if typ == "s" else nums[-1] if nums else args[0]
         else:
-            try:
-                v = float(args[0]) if typ == "n" else int(float(args[0]))
-            except (TypeError, ValueError):
-                return
+            raw = args[0]
+        if isinstance(raw, bytes):
+            return
+        try:
+            if key in self.model.conv and typ != "s":
+                raw = self.model.conv[key][1](float(raw))
+            if typ == "s":
+                v = str(raw)
+            elif typ == "n":
+                v = round(float(raw), 3)
+            else:
+                v = int(round(float(raw)))
+        except (TypeError, ValueError):
+            return
         self.values[key] = v
         self.hub.queue_update(key, v)
         if key.endswith(".src.grp") or key.endswith(".src.in"):
             self._map_source(key.split(".")[0])
 
+    def _xair_meters(self, blob):
+        """X Air /meters/1: 16 canales, aux L/R, 4 FX L/R, 6 buses, 4 envíos FX, L/R, monitor (dB x 256)."""
+        try:
+            n = struct.unpack("<i", blob[:4])[0]
+            vals = struct.unpack(f"<{n}h", blob[4:4 + 2 * n])
+        except struct.error:
+            return
+        if n < 38:
+            return
+        lin = lambda i: 10 ** ((vals[i] / 256.0) / 20)
+        m = self.meters
+        for i in range(16):
+            m[f"ch{i + 1}"] = [lin(i), 1.0, 1.0]
+        m["aux1"] = [max(lin(16), lin(17)), 1.0, 1.0]
+        for i in range(4):
+            m[f"fx{i + 1}"] = [max(lin(18 + 2 * i), lin(19 + 2 * i)), 1.0, 1.0]
+        for i in range(6):
+            m[f"bus{i + 1}"] = [lin(26 + i), 1.0, 1.0]
+        for i in range(4):
+            m[f"fxs{i + 1}"] = [lin(32 + i), 1.0, 1.0]
+        m["lr"] = [max(lin(36), lin(37)), 1.0, 1.0]
+
     # ---- parámetros ----
     def set(self, key, value):
         if key not in self.spec:
             return False
-        typ, lo, hi = self.spec[key][:3]
+        sp = self.spec[key]
+        typ, lo, hi = sp[:3]
         try:
             if typ == "s":
-                v = str(value)[:16]
+                v = str(value)[:16 if self.kind == "wing" else 12]
             elif typ == "n":
                 v = min(float(hi), max(float(lo), float(value)))
+                if sp[3] == "enum":
+                    v = min(sp[5], key=lambda x: abs(x - v))
             else:
                 v = int(min(hi, max(lo, int(value)))) if typ == "i" else (1 if value else 0)
         except (TypeError, ValueError):
             return False
         self.values[key] = v
-        if self.mode == "wing" and key in self.path:
-            self.send(self.path[key], v if typ != "n" else float(v))
+        if self.mode == "live" and key in self.path:
+            out, ot = v, self.model.otype[key]
+            if key in self.model.conv:
+                out = self.model.conv[key][0](v)
+                if ot == "f":
+                    out = min(1.0, max(0.0, out))
+            self.send(self.path[key], int(round(out)) if ot == "i" else float(out) if ot == "f" else str(out))
         return True
 
     # ---- tareas periódicas ----
     async def tick(self):
         """Mantiene viva la suscripción y simula los vúmetros en el modo demo."""
         last_sub = 0.0
-        phase = {s["id"]: random.random() * 10 for s in self.strips}
+        phase = {}
         while True:
             await asyncio.sleep(0.05)
             now = time.time()
-            if self.mode == "wing" and self.transport is not None:
+            if self.mode == "live" and self.transport is not None:
                 if now - last_sub > 7:
-                    self.send("/*S")
-                    self.send("/?")
+                    self._subscribe()
+                    self.send("/?" if self.kind == "wing" else "/xinfo")
                     last_sub = now
                 if self.connected and now - self.last_rx > 20:
                     self.connected = False
@@ -363,36 +599,39 @@ class Mixer:
                 self.hub.send_meters()
 
     def _demo_setup(self):
-        v = self.values
+        v, wing = self.values, self.kind == "wing"
         for sid, data in DEMO_NAMES.items():
-            v[sid + ".name"] = data[0]
-            if len(data) > 1:
-                v[sid + ".color"] = data[1]
+            if sid + ".name" in v:
+                v[sid + ".name"] = data[0]
+                if len(data) > 1:
+                    v[sid + ".color"] = data[1] if wing else data[2]
         for s in self.strips:
             sid = s["id"]
-            if s["kind"] in ("ch", "aux") and v[sid + ".name"]:
+            if s["kind"] in ("ch", "aux", "fxrtn") and v[sid + ".name"]:
                 v[sid + ".fader"] = 0.0 if s["kind"] == "ch" else -6.0
-                v[sid + ".eq.on"] = 1
+                if s["eq"]:
+                    v[sid + ".eq.on"] = 1
                 if s["kind"] == "ch":
                     v[sid + ".dyn.on"] = 1
                     v[sid + ".gain"] = 30.0
                     v[sid + ".lc"] = 1
-            if s["kind"] == "bus" and v[sid + ".name"]:
+            if s["kind"] in ("bus", "fxsend") and v[sid + ".name"]:
                 v[sid + ".fader"] = 0.0
         for n in range(1, 16):
-            v[f"ch{n}.send.4.lvl"] = -10.0 if n != 15 else 0.0
+            if f"ch{n}.send.4.lvl" in v:
+                v[f"ch{n}.send.4.lvl"] = -10.0 if n != 15 else 0.0
 
     def _demo_meters(self, now, phase):
         v, m = self.values, self.meters
         mix = 0.0
         for s in self.strips:
             sid = s["id"]
-            if s["kind"] not in ("ch", "aux"):
+            if s["kind"] not in ("ch", "aux", "fxrtn"):
                 continue
             if not v[sid + ".name"]:
                 m[sid] = [0.0, 1.0, 1.0]
                 continue
-            ph = phase[sid]
+            ph = phase.setdefault(sid, random.random() * 10)
             env = 0.5 + 0.5 * math.sin(now * (1.3 + ph % 1.7) + ph)
             hit = abs(math.sin(now * (2 + ph % 3) + ph)) ** 6
             lvl = min(1.0, (0.08 + 0.35 * env + 0.4 * hit) * (0.6 + 0.4 * random.random()))
@@ -406,11 +645,11 @@ class Mixer:
                 mix = max(mix, lvl * fader_gain(v[sid + ".fader"]))
         for s in self.strips:
             sid = s["id"]
-            if s["kind"] == "bus":
+            if s["kind"] in ("bus", "fxsend"):
                 lvl = mix * 0.7 * random.uniform(0.85, 1) if v[sid + ".name"] else 0.0
                 m[sid] = [min(1.0, lvl * fader_gain(v[sid + ".fader"]) * 1.5), 1.0, 1.0]
-        main = mix * fader_gain(v["main1.fader"]) if not v["main1.mute"] else 0.0
-        m["main1"] = [min(1.0, main), 1.0, 1.0]
+        main = self.model.master
+        m[main] = [min(1.0, mix * fader_gain(v[main + ".fader"])) if not v[main + ".mute"] else 0.0, 1.0, 1.0]
 
     # ---- escenas ----
     def snapshot(self):
@@ -435,8 +674,8 @@ class _OscProtocol(asyncio.DatagramProtocol):
         pass
 
 
-def discover(timeout=1.5):
-    """Busca mesas WING en la red local (difusión "WING?" al puerto 2222)."""
+def discover(timeout=1.6):
+    """Busca mesas en la red local: WING ("WING?" al puerto 2222) y X Air (/xinfo al 10024)."""
     found = {}
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -444,16 +683,21 @@ def discover(timeout=1.5):
         s.settimeout(0.25)
         for _ in range(2):
             s.sendto(b"WING?", ("255.255.255.255", WING_INFO_PORT))
+            s.sendto(osc_encode("/xinfo"), ("255.255.255.255", XAIR_PORT))
             end = time.time() + timeout / 2
             while time.time() < end:
                 try:
                     data, (ip, _) = s.recvfrom(2048)
                 except socket.timeout:
                     continue
-                parts = data.decode("utf-8", "replace").strip("\0").split(",")
-                if parts and parts[0] == "WING" and len(parts) >= 4:
-                    found[ip] = {"ip": ip, "name": parts[2], "model": parts[3],
-                                 "version": parts[5] if len(parts) > 5 else ""}
+                if data.startswith(b"WING,"):
+                    parts = data.decode("utf-8", "replace").strip("\0").split(",")
+                    if len(parts) >= 4:
+                        found[ip] = {"ip": ip, "kind": "wing", "name": parts[2], "model": "WING " + parts[3]}
+                else:
+                    msg = osc_decode(data)
+                    if msg and msg[0] == "/xinfo" and len(msg[1]) >= 3:
+                        found[ip] = {"ip": ip, "kind": "xair", "name": msg[1][1], "model": msg[1][2]}
     except OSError:
         pass
     finally:
@@ -497,7 +741,7 @@ class Hub:
     def __init__(self):
         self.clients = set()
         self.mixer = Mixer(self)
-        self.cfg = {"mode": "demo", "ip": "", "scenes": [], "layout": {}}
+        self.cfg = {"kind": "wing", "demo": True, "ip": "", "ips": {}, "scenes": [], "layouts": {}}
         self._updates = {}
         self.load()
 
@@ -507,9 +751,11 @@ class Hub:
             self.cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
         except (OSError, ValueError):
             pass
-        if self.cfg.get("mode") not in ("demo", "wing"):      # configuración de versiones anteriores
-            self.cfg["mode"] = "demo"
-        self.cfg["scenes"] = [s for s in self.cfg.get("scenes", []) if s.get("model") == "wing"]
+        if self.cfg.get("kind") not in MODELS:
+            self.cfg["kind"] = "wing"
+        self.cfg["scenes"] = [s for s in self.cfg.get("scenes", []) if s.get("model") in MODELS]
+        if not isinstance(self.cfg.get("layouts"), dict):
+            self.cfg["layouts"] = {}
 
     def save(self):
         try:
@@ -520,8 +766,9 @@ class Hub:
     # ---- envío ----
     def status(self):
         m = self.mixer
-        return {"t": "status", "mode": m.mode, "ip": m.ip, "connected": m.connected, "info": m.info,
-                "meters": m.has_meters, "url": f"http://{lan_ip()}:{PORT}", "lastIp": self.cfg.get("ip", "")}
+        return {"t": "status", "mode": m.mode, "kind": m.kind, "ip": m.ip, "connected": m.connected,
+                "info": m.info, "meters": m.has_meters, "url": f"http://{lan_ip()}:{PORT}",
+                "ips": self.cfg.get("ips", {})}
 
     def broadcast(self, obj, skip=None):
         for c in list(self.clients):
@@ -540,7 +787,18 @@ class Hub:
             self.broadcast({"t": "m", "v": meters})
 
     def scenes(self):
-        return {"t": "scenes", "v": [{"name": s["name"], "time": s.get("time", "")} for s in self.cfg["scenes"]]}
+        kind = self.mixer.kind
+        return {"t": "scenes", "v": [{"i": i, "name": s["name"], "time": s.get("time", "")}
+                                     for i, s in enumerate(self.cfg["scenes"]) if s.get("model") == kind]}
+
+    def layout(self):
+        return {"t": "layout", "v": self.cfg["layouts"].get(self.mixer.kind, {})}
+
+    def full(self, target):
+        """Modelo + estado completo (al conectar un iPad o al cambiar de mesa)."""
+        m = self.mixer
+        for msg in (m.model.describe(), self.status(), {"t": "state", "v": m.values}, self.scenes(), self.layout()):
+            target(msg)
 
     # ---- mensajes de la interfaz ----
     async def handle(self, client, msg):
@@ -550,24 +808,28 @@ class Hub:
             if m.set(msg.get("p"), msg.get("v")):
                 self.broadcast({"t": "upd", "v": {msg["p"]: m.values[msg["p"]]}}, skip=client)
         elif t == "connect":
-            mode, ip = msg.get("mode", "demo"), msg.get("ip", "")
-            res = await m.connect(mode, ip)
+            kind = msg.get("kind") if msg.get("kind") in MODELS else "wing"
+            demo, ip = bool(msg.get("demo")), str(msg.get("ip", ""))
+            res = await m.connect(kind, demo, ip)
+            self.cfg["kind"], self.cfg["demo"] = kind, demo
             if res["ok"]:
-                self.cfg["mode"] = mode
-                if mode == "wing":
+                if not demo:
                     self.cfg["ip"] = ip
+                    self.cfg.setdefault("ips", {})[kind] = ip
                 self.save()
             client.send({"t": "connectResult", **res})
-            self.broadcast(self.status())
-            self.broadcast({"t": "state", "v": m.values})
+            self.full(self.broadcast)
         elif t == "discover":
             found = await asyncio.get_running_loop().run_in_executor(None, discover)
             client.send({"t": "found", "v": found})
         elif t == "sceneSave":
-            name = " ".join(str(msg.get("name", "")).split())[:40] or f"Escena {len(self.cfg['scenes']) + 1}"
-            sc = {"name": name, "time": time.strftime("%d/%m %H:%M"), "model": "wing", "values": m.snapshot()}
+            kind = m.kind
+            name = " ".join(str(msg.get("name", "")).split())[:40]
+            if not name:
+                name = f"Mezcla {sum(1 for s in self.cfg['scenes'] if s.get('model') == kind) + 1}"
+            sc = {"name": name, "time": time.strftime("%d/%m %H:%M"), "model": kind, "values": m.snapshot()}
             for i, s in enumerate(self.cfg["scenes"]):
-                if s["name"].lower() == name.lower():
+                if s.get("model") == kind and s["name"].lower() == name.lower():
                     self.cfg["scenes"][i] = sc
                     break
             else:
@@ -576,7 +838,7 @@ class Hub:
             self.broadcast(self.scenes())
         elif t == "sceneLoad":
             i = int(msg.get("i", -1))
-            if 0 <= i < len(self.cfg["scenes"]):
+            if 0 <= i < len(self.cfg["scenes"]) and self.cfg["scenes"][i].get("model") == m.kind:
                 m.recall(self.cfg["scenes"][i]["values"])
                 self.broadcast({"t": "state", "v": m.values})
         elif t == "sceneDelete":
@@ -586,16 +848,12 @@ class Hub:
                 self.save()
                 self.broadcast(self.scenes())
         elif t == "layout":
-            self.cfg["layout"] = msg.get("v") or {}
+            self.cfg["layouts"][m.kind] = msg.get("v") or {}
             self.save()
 
     def welcome(self, client):
-        m = self.mixer
-        client.send({"t": "model", "strips": m.strips, "spec": m.spec})
-        client.send(self.status())
-        client.send({"t": "state", "v": m.values})
-        client.send(self.scenes())
-        client.send({"t": "layout", "v": self.cfg.get("layout", {})})
+        self.full(client.send)
+
 
     # ---- HTTP + WebSocket (solo biblioteca estándar) ----
     async def serve_conn(self, reader, writer):
@@ -687,7 +945,10 @@ class Hub:
     async def run(self, ready=None):
         server = await asyncio.start_server(self.serve_conn, "0.0.0.0", PORT)
         asyncio.ensure_future(self.mixer.tick())
-        await self.mixer.connect(self.cfg["mode"], self.cfg.get("ip", ""))
+        res = await self.mixer.connect(self.cfg["kind"], self.cfg.get("demo", True),
+                                       self.cfg.get("ips", {}).get(self.cfg["kind"], self.cfg.get("ip", "")))
+        if not res["ok"]:
+            await self.mixer.connect(self.cfg["kind"], True)   # sin mesa: arranca en demo
         if ready:
             ready.set()
         async with server:
