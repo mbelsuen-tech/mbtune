@@ -1,0 +1,10 @@
+{
+  "name": "MB Soundtools · MBMix",
+  "short_name": "MBMix",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [{"src": "icon.png", "sizes": "128x128", "type": "image/png"}]
+}

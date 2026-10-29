@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MBMix">
+<meta name="theme-color" content="#050505">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>MBMix</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <img class="logo" src="logo.png" alt="MB Soundtools">
+  <div class="title"><b>MBMix</b><small>MB SOUNDTOOLS</small></div>
+  <nav class="layers" id="layers"></nav>
+  <button class="mixsel" id="mixSel" title="Mezcla que controlan los faders"><small>Faders</small><span id="mixName">Main LR</span></button>
+  <button class="icon-btn" id="scenesBtn" title="Escenas"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg></button>
+  <button class="icon-btn" id="connBtn" title="Conexión"><svg viewBox="0 0 24 24"><path d="M4 19V9M9 19V5M14 19v-7M19 19V3"/></svg><span class="conn-dot" id="connDot"></span></button>
+</header>
+
+<section class="desk">
+  <div class="strips" id="strips"></div>
+  <div class="master" id="master"></div>
+</section>
+
+<!-- vista de canal -->
+<section class="detail" id="detail">
+  <div class="dtop">
+    <button class="icon-btn" id="dClose" title="Volver a la mesa"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="dname" id="dName"></div>
+    <nav class="tabs" id="dTabs"></nav>
+    <button class="icon-btn" id="dPrev" title="Canal anterior"><svg viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg></button>
+    <button class="icon-btn" id="dNext" title="Canal siguiente"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+  </div>
+  <div class="dbody"><div class="strip" id="dStrip"></div><div class="pane" id="dPane"></div></div>
+</section>
+
+<!-- conexión -->
+<section class="sheet" id="connSheet">
+  <div class="card">
+    <button class="close" data-close>✕</button>
+    <h2>Conectar mesa</h2>
+    <p class="sub" id="connInfo">Elige tu mesa. Con «Demo» puedes probarlo todo sin mesa.</p>
+    <div class="models" id="models">
+      <button class="model" data-mode="x32"><b>Behringer X32</b><small>X32, X32 Compact/Producer/Rack, Midas M32 · por red (OSC)</small></button>
+      <button class="model" data-mode="demo"><b>Demo</b><small>Mesa virtual X32 con señales de ejemplo</small></button>
+    </div>
+    <div id="ipBox">
+      <h3>Dirección IP de la mesa</h3>
+      <div class="row"><input class="field" id="ip" inputmode="decimal" placeholder="192.168.1.50" autocomplete="off"><button class="btn" id="findBtn">Buscar</button></div>
+      <div class="found" id="found"></div>
+    </div>
+    <div class="row" style="margin-top:18px"><button class="btn red" id="connectBtn" style="flex:1;height:54px;font-size:17px">Conectar</button></div>
+    <p class="hint">Para usarlo en el iPad: conecta el iPad al mismo Wi-Fi que este ordenador y abre en Safari<br><code id="lanUrl">—</code><br>
+      Después, en Safari: Compartir → «Añadir a pantalla de inicio» para abrirlo a pantalla completa como una app.</p>
+  </div>
+</section>
+
+<!-- escenas -->
+<section class="sheet" id="sceneSheet">
+  <div class="card">
+    <button class="close" data-close>✕</button>
+    <h2>Escenas</h2>
+    <p class="sub">Guarda toda la mezcla (faders, mutes, EQ, dinámica, envíos, nombres…) y recupérala con un toque.</p>
+    <div class="row"><input class="field" id="sceneName" placeholder="Nombre de la escena" maxlength="40"><button class="btn red" id="sceneSave">Guardar</button></div>
+    <h3>Guardadas</h3>
+    <div class="list" id="sceneList"></div>
+  </div>
+</section>
+
+<!-- elegir mezcla (sends on fader) -->
+<section class="sheet" id="mixSheet">
+  <div class="card" style="width:min(720px,94vw)">
+    <button class="close" data-close>✕</button>
+    <h2>¿Qué mezcla controlan los faders?</h2>
+    <p class="sub">Elige un bus para hacer la mezcla de monitores: los faders de los canales pasan a ser los envíos a ese bus.</p>
+    <div class="mixlist" id="mixList"></div>
+  </div>
+</section>
+
+<!-- editar capa propia -->
+<section class="sheet" id="layerSheet">
+  <div class="card" style="width:min(820px,96vw)">
+    <button class="close" data-close>✕</button>
+    <h2>Mi capa</h2>
+    <p class="sub">Toca los canales que quieres en tu capa, en el orden en que quieres verlos.</p>
+    <div id="layerPick"></div>
+    <div class="row" style="margin-top:16px"><button class="btn" id="layerClear">Vaciar</button><span style="flex:1"></span><button class="btn red" id="layerDone">Hecho</button></div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
