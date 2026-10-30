@@ -280,3 +280,82 @@ body.nometers .meter,body.nometers .grbar,body.nometers .bigmeter{visibility:hid
 .send.noon{grid-template-columns:120px minmax(0,1fr) 56px}
 .send.noon .on{display:none}
 @media (max-width:700px){.models.three{grid-template-columns:1fr}}
+
+/* ===== v3: características de Zeta Control ===== */
+/* filas rápidas */
+.qrow{display:none;flex:none;gap:6px;margin:8px 8px 0;padding:6px;border-radius:14px;background:var(--panel);border:1px solid var(--edge);box-shadow:var(--hi);overflow-x:auto;scrollbar-width:none}
+.qrow::-webkit-scrollbar{display:none}
+.qrow.show{display:flex}
+.qrow .chip{flex:none;height:46px;padding:0 16px;border-radius:999px;background:var(--btn);border:1px solid var(--edge);box-shadow:var(--hi);
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;font-size:15px;font-weight:700;white-space:nowrap;position:relative;padding-left:22px}
+.qrow .chip::before{content:"";position:absolute;left:10px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--c,var(--red))}
+.qrow .chip small{font-size:11px;color:var(--muted);font-weight:500}
+.qrow .chip.sel{box-shadow:inset 0 0 0 2px var(--c,var(--red)),0 0 14px rgba(227,16,28,.25)}
+.qrow .chip.confirm{background:var(--btn-red);border-color:#ff3b45} .qrow .chip.confirm small{color:#fff}
+.qrow .chip.ghost{background:transparent;border-style:dashed;color:var(--muted);padding-left:16px} .qrow .chip.ghost::before{display:none}
+.rowhint{align-self:center;color:var(--muted);font-size:14px;padding:0 10px}
+.tbtn.on{box-shadow:inset 0 0 0 2px var(--red),0 0 12px rgba(227,16,28,.35)} .tbtn.on small{color:#fff}
+.tbtn.lock.on{background:var(--btn-red);border-color:#ff3b45}
+/* bloqueo */
+body.locked .fader,body.locked .mute,body.locked .solo,body.locked .pan,body.locked .sendon,body.locked .kn,body.locked .graph,body.locked .hslider,
+body.locked .send .on,body.locked .bigtoggle,body.locked .toggle,body.locked .pane .chips button,body.locked .mgroups button,body.locked .pane input,
+body.locked .colors button,body.locked #grpSave{pointer-events:none;opacity:.55}
+body.locked .desk{box-shadow:inset 0 0 0 2px rgba(227,16,28,.35);border-radius:16px}
+/* tiras extra */
+.addtile{align-items:center;justify-content:center;color:var(--muted);font-size:13px;line-height:1.5;text-align:center}
+.addtile b{font-size:30px;color:var(--text)}
+.strip.group{background:linear-gradient(var(--panel),var(--panel)) padding-box,repeating-linear-gradient(135deg,var(--c) 0 6px,transparent 6px 12px) border-box;border:2px solid transparent}
+.strip.group .members{height:62px;flex:none;font-size:11px;line-height:1.3;color:var(--muted);text-align:center;overflow:hidden;padding:2px}
+.strip.group .mute{height:46px}
+.strip.linked.lk-l{border-top-right-radius:4px;border-bottom-right-radius:4px;margin-right:-3px;border-right-color:#55555c}
+.strip.linked.lk-r{border-top-left-radius:4px;border-bottom-left-radius:4px;border-left-color:#55555c}
+/* vúmetro tipo LED */
+.meter b{-webkit-mask:repeating-linear-gradient(to top,#000 0 3px,transparent 3px 4px);mask:repeating-linear-gradient(to top,#000 0 3px,transparent 3px 4px)}
+/* pestaña Canal */
+.bigtoggle.confirm{background:linear-gradient(180deg,#ffc04a,#d68a00);color:#1a1000}
+.bigtoggle.main{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:150px;position:relative;overflow:hidden}
+.bigtoggle.main::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--c)}
+.bigtoggle small,.bigtoggle.wide small{display:block;font-size:12px;font-weight:500;opacity:.8}
+.bigtoggle.wide{width:100%;max-width:640px;text-align:left;padding:10px 18px;height:auto;min-height:64px}
+/* panel lateral */
+body.side .detail{left:auto;width:min(560px,48vw);background:#09090a;border-left:1px solid var(--edge);box-shadow:-20px 0 40px rgba(0,0,0,.6)}
+body.side.dopen .desk,body.side.dopen .qrow{margin-right:min(560px,48vw)}
+body.side.dopen .top{margin-right:calc(min(560px,48vw) + 8px)}
+body.side .detail .dbody>.strip{display:none}
+body.side .dtop{flex-wrap:wrap;height:auto;padding:8px;gap:6px}
+body.side .dname{flex:1;min-width:0}
+body.side .tabs{order:5;flex:1 0 100%}
+body.side .tbtn small{display:none} body.side .tbtn{height:46px;min-width:46px}
+body.side .kn{width:104px}
+/* grupos: colores */
+.gcolors{display:flex;gap:8px;flex-wrap:wrap}
+.gcolors button{width:46px;height:46px;border-radius:12px;border:2px solid transparent}
+.gcolors button.sel{border-color:#fff;box-shadow:0 0 0 2px #000 inset}
+.btn.danger{color:#ff5a5f;border-color:rgba(255,90,95,.4)}
+/* ajustes */
+.card.settings{width:min(920px,96vw);height:min(640px,90vh);padding:0;display:grid;grid-template-columns:200px 1fr;overflow:hidden}
+.card.settings::before{display:none}
+.setnav{background:#0b0b0d;border-right:1px solid var(--edge);padding:16px 8px;display:flex;flex-direction:column;gap:4px;overflow:auto}
+.setnav h2{margin:0 10px 10px;font-size:24px}
+.setnav button{text-align:left;padding:12px 14px;border-radius:10px;font-size:15px;font-weight:600;color:var(--muted)}
+.setnav button.sel{background:var(--panel);color:#fff;box-shadow:inset 3px 0 0 var(--red)}
+.setbody{position:relative;padding:22px 24px;overflow:auto}
+.setbody h3{margin:0 0 6px;font-size:22px;color:var(--text);text-transform:none;letter-spacing:0}
+.setbody p{line-height:1.45}
+.setbody .btn{margin-top:12px}
+.setrow{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--edge)}
+.setrow div{flex:1} .setrow b{display:block;font-size:16px} .setrow small{display:block;color:var(--muted);font-size:13px;margin-top:3px;line-height:1.35}
+.switch.mini{width:auto;margin:0;padding:0;min-height:0;background:none;border:0}
+.list .item .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+.list .item small{display:block;margin:2px 0 0}
+@media (max-width:700px){.card.settings{grid-template-columns:1fr;height:90vh}.setnav{flex-direction:row;overflow-x:auto}.setnav h2{display:none}}
+/* esquema de conexión */
+.netmap{display:flex;align-items:center;gap:8px;margin:18px 0 4px;padding:16px 14px;border-radius:14px;background:#0b0b0d;border:1px solid var(--edge)}
+.netmap .node{flex:none;text-align:center;min-width:84px}
+.netmap .node b{display:block;font-size:15px} .netmap .node small{color:var(--muted);font-size:12px}
+.netmap .link{flex:1;height:2px;position:relative;min-width:30px;background:repeating-linear-gradient(90deg,#3a3a40 0 6px,transparent 6px 10px)}
+.netmap .link.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.netmap .link span{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap}
+.strips{grid-auto-columns:minmax(60px,112px);justify-content:start}
+body.side .tabs{flex-wrap:wrap;overflow:visible}
+body.side .tabs button{flex:1 0 auto;height:38px;padding:0 10px}

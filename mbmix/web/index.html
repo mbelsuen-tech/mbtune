@@ -22,8 +22,12 @@
   <button class="mixsel" id="mixSel" title="Elegir qué mezcla controlan los faders"><small>Estás mezclando</small><span id="mixName">Principal</span></button>
   <button class="tbtn" id="scenesBtn" title="Guardar y cargar mezclas"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg><small>Mezclas</small></button>
   <button class="tbtn" id="connBtn" title="Conectar la mesa"><svg viewBox="0 0 24 24"><path d="M4 19V9M9 19V5M14 19v-7M19 19V3"/></svg><small id="connState">Mesa</small><span class="conn-dot" id="connDot"></span></button>
-  <button class="tbtn" id="helpBtn" title="Cómo se usa"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/></svg><small>Ayuda</small></button>
+  <button class="tbtn" id="setBtn" title="Ajustes y ayuda"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><small>Ajustes</small></button>
+  <button class="tbtn lock" id="lockBtn" title="Bloquear los controles para no tocar nada sin querer"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><small>Bloquear</small></button>
 </header>
+
+<nav class="qrow" id="monRow" aria-label="Mezclas de monitor"></nav>
+<nav class="qrow" id="sceneRow" aria-label="Mezclas guardadas"></nav>
 
 <section class="desk">
   <div class="strips" id="strips"></div>
@@ -62,6 +66,11 @@
       <div class="found" id="found"></div>
     </div>
     <div class="row" style="margin-top:18px"><button class="btn red" id="connectBtn" style="flex:1;height:54px;font-size:17px">Conectar</button></div>
+    <div class="netmap" aria-label="Esquema de conexión">
+      <div class="node"><b>iPad</b><small>Safari</small></div><div class="link" id="nl1"><span>Wi-Fi</span></div>
+      <div class="node"><b>Ordenador</b><small>MBMix</small></div><div class="link" id="nl2"><span>Red / cable</span></div>
+      <div class="node"><b id="nodeMixer">Mesa</b><small id="nodeIp">sin IP</small></div>
+    </div>
     <p class="hint">Para usarlo en el iPad: conecta el iPad al mismo Wi-Fi que este ordenador y abre en Safari<br><code id="lanUrl">—</code><br>
       Después, en Safari: Compartir → «Añadir a pantalla de inicio» para abrirlo a pantalla completa como una app.</p>
   </div>
@@ -105,16 +114,39 @@
   <div class="card" style="width:min(720px,94vw)">
     <button class="close" data-close>✕</button>
     <h2>Cómo se usa</h2>
-    <ul class="help">
+    <ul class="help" id="helpList">
       <li><b>Arriba</b> eliges qué canales ves (cambia según tu mesa: WING o XR18) o «Mi vista», con los canales que tú elijas.</li>
       <li><b>Fader</b>: arrastra arriba o abajo. Toca dos veces para dejarlo en 0 dB.</li>
       <li><b>MUTE</b> silencia el canal. <b>SOLO</b> lo escuchas tú solo por los cascos.</li>
       <li><b>Toca el nombre</b> de un canal para ajustar su entrada, puerta, compresor, ecualizador, envíos, nombre y color.</li>
       <li><b>Mandos redondos</b>: arrastra el dedo arriba o abajo. Doble toque = valor de fábrica.</li>
       <li><b>«Estás mezclando»</b>: cambia a un bus para hacer la mezcla de monitor de un músico.</li>
-      <li><b>Mezclas</b>: guarda cómo está todo y recupéralo más tarde.</li>
+      <li><b>Mezclas</b>: abre una fila con tus mezclas guardadas; toca dos veces una para cargarla.</li>
+      <li><b>Grupos</b>: un fader que mueve varios canales a la vez sin cambiar la mezcla entre ellos.</li>
+      <li><b>Bloquear</b>: el candado congela todos los controles para que nada se mueva sin querer en el bolo.</li>
       <li>Puedes usar varios iPads a la vez: todos se ven igual y a la vez que la mesa.</li>
     </ul>
+  </div>
+</section>
+
+<!-- grupo -->
+<section class="sheet" id="groupSheet">
+  <div class="card" style="width:min(820px,96vw)">
+    <button class="close" data-close>✕</button>
+    <h2 id="grpTitle">Nuevo grupo</h2>
+    <p class="sub">Un solo fader que sube y baja todos los canales que elijas, manteniendo la mezcla entre ellos.</p>
+    <input class="field" id="grpName" maxlength="14" placeholder="Nombre (ej.: Batería, Coros, Guitarras)" style="max-width:420px">
+    <h3>Color</h3><div class="gcolors" id="grpColors"></div>
+    <div id="grpPick"></div>
+    <div class="row" style="margin-top:16px"><button class="btn danger" id="grpDel">Eliminar grupo</button><span style="flex:1"></span><button class="btn red" id="grpSave">Guardar grupo</button></div>
+  </div>
+</section>
+
+<!-- ajustes -->
+<section class="sheet" id="setSheet">
+  <div class="card settings">
+    <nav class="setnav" id="setNav"></nav>
+    <div class="setbody"><button class="close" data-close>✕</button><div id="setBody"></div></div>
   </div>
 </section>
 

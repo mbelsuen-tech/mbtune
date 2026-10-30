@@ -30,7 +30,16 @@ y en Safari: Compartir → «Añadir a pantalla de inicio» para usarla a pantal
   Puerta, Compresor (con curva), Ecualizador gráfico (graves, 4 medios, agudos: arrastra los puntos,
   pellizca con dos dedos para la anchura), Envíos a los 16 buses y Nombre/Color.
   Cada pantalla explica en una línea para qué sirve.
-- **Mezclas guardadas**: guarda y recupera toda la mezcla.
+- **Mezclas guardadas**: guarda y recupera toda la mezcla; fila rápida para cargarlas con doble toque.
+- **Grupos propios**: un fader que mueve varios canales a la vez manteniendo la mezcla entre ellos
+  (en la mezcla principal y en cada monitor), con mute de grupo.
+- **Canales enlazados** (1–2, 3–4…): fader, mute, envíos y procesado a la vez; ganancia y +48V separados.
+- **Fila de monitores** para cambiar de mezcla de un toque, **envío a mains** por canal
+  y **+48V con confirmación**.
+- **Bloquear**: congela todos los controles durante el bolo.
+- **Panel lateral**: el canal se abre a la derecha sin perder de vista los faders (o a pantalla completa).
+- **Ajustes**: Mi vista, Grupos, Canales enlazados, Pantalla (mantener encendida, pantalla completa),
+  Ayuda y Datos. Vista, grupos y enlaces se comparten entre todos los iPads.
 - **Conexión**: eliges WING Rack, WING o XR18; búsqueda automática en la red o IP manual.
   Interruptor «Probar sin mesa» para practicar con cualquiera de ellas.
 - **Ayuda** integrada (botón «Ayuda»).

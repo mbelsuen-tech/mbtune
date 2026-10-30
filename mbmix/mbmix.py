@@ -142,6 +142,7 @@ class Model:
         self.strips, self.spec, self.path, self.conv, self.otype = [], {}, {}, {}, {}
         self.layers, self.targets, self.colors = [], [], []
         self.master, self.mgroups = "", 0
+        self.mains = []            # salidas principales a las que se puede asignar un canal
 
     def p(self, key, path, typ, lo=0, hi=1, curve="lin", default=0, conv=None, otype=None, values=None):
         self.spec[key] = [typ, lo, hi, curve, default] + ([values] if values else [])
@@ -161,7 +162,7 @@ class Model:
     def describe(self):
         return {"t": "model", "kind": self.kind, "name": self.name, "strips": self.strips, "spec": self.spec,
                 "layers": self.layers, "targets": self.targets, "colors": self.colors, "master": self.master,
-                "mgroups": self.mgroups}
+                "mgroups": self.mgroups, "mains": self.mains}
 
 
 # ---------------------------------------------------- Behringer WING ----
@@ -225,6 +226,8 @@ def build_wing():
             for b in range(1, 17):
                 p(f"{k}send.{b}.lvl", f"{base}/send/{b}/lvl", "n", -144, 10, "fdr", -144.0)
                 p(f"{k}send.{b}.on", f"{base}/send/{b}/on", "b", default=1)
+            for mn in range(1, 5):
+                p(f"{k}main.{mn}.on", f"{base}/main/{mn}/on", "b", default=1 if mn == 1 else 0)
 
     for n in range(1, 41):
         strip(f"ch{n}", "ch", f"Canal {n}", f"/ch/{n}", eq=EQ_WING_SMALL, gate=True, dyn=True, sends=True, inp=True)
@@ -242,6 +245,7 @@ def build_wing():
         m.p(f"mg{g}.mute", f"/mgrp/{g}/mute", "b")
         m.p(f"mg{g}.name", f"/mgrp/{g}/name", "s", default="")
     m.targets = [{"n": b, "id": f"bus{b}"} for b in range(1, 17)]
+    m.mains = [{"n": n, "id": f"main{n}"} for n in range(1, 5)]
     ids = lambda pre, a, b: [f"{pre}{i}" for i in range(a, b + 1)]
     m.layers = [{"id": "in1", "name": "1–16", "ids": ids("ch", 1, 16)},
                 {"id": "in2", "name": "17–32", "ids": ids("ch", 17, 32)},
@@ -320,6 +324,7 @@ def build_xair():
         if sends:
             for b in range(1, 11):
                 p(f"{k}send.{b}.lvl", f"{mix}/{b:02d}/level", "n", -144, 10, "fdr", -144.0, conv=CONV_FADER)
+            p(f"{k}main.1.on", f"{mix}/lr", "b", default=1)
 
     for n in range(1, 17):
         strip(f"ch{n}", "ch", f"Canal {n}", f"/ch/{n:02d}", n, eq=4, gate=True, dyn=True, sends=True, inp=n)
@@ -336,6 +341,7 @@ def build_xair():
     for g in range(1, 5):
         p(f"mg{g}.mute", f"/config/mute/{g}", "b")
     m.targets = [{"n": b, "id": f"bus{b}"} for b in range(1, 7)] + [{"n": 6 + f, "id": f"fxs{f}"} for f in range(1, 5)]
+    m.mains = [{"n": 1, "id": "lr"}]
     m.layers = [{"id": "in1", "name": "1–16", "ids": [f"ch{i}" for i in range(1, 17)]},
                 {"id": "rtn", "name": "Aux · FX", "ids": ["aux1"] + [f"fx{i}" for i in range(1, 5)]},
                 {"id": "bus", "name": "Buses", "ids": [f"bus{i}" for i in range(1, 7)] + [f"fxs{i}" for i in range(1, 5)]},
@@ -794,6 +800,45 @@ class Hub:
     def layout(self):
         return {"t": "layout", "v": self.cfg["layouts"].get(self.mixer.kind, {})}
 
+    # ---- canales enlazados (pares 1-2, 3-4...) ----
+    NO_LINK = ("name", "color", "gain", "p48", "trim", "invert", "pan", "solo")
+
+    def links(self):
+        return self.cfg["layouts"].setdefault(self.mixer.kind, {}).setdefault("links", [])
+
+    def partner(self, key):
+        """Clave equivalente en el canal enlazado, o None."""
+        sid, _, rest = key.partition(".")
+        if not sid.startswith("ch") or not rest or rest.split(".")[0] in self.NO_LINK or rest.startswith("src."):
+            return None
+        n = int(sid[2:])
+        odd = n if n % 2 else n - 1
+        if odd not in self.links():
+            return None
+        other = f"ch{odd + 1 if n == odd else odd}.{rest}"
+        return other if other in self.mixer.spec else None
+
+    def link(self, odd, on):
+        m, links = self.mixer, self.links()
+        a, b = f"ch{odd}", f"ch{odd + 1}"
+        if a + ".fader" not in m.spec or b + ".fader" not in m.spec:
+            return
+        if on and odd not in links:
+            links.append(odd)
+            for key in list(m.spec):
+                if key.startswith(a + "."):
+                    other = self.partner(key)
+                    if other:
+                        m.set(other, m.values[key])
+            if a + ".pan" in m.spec:
+                m.set(a + ".pan", -100)
+                m.set(b + ".pan", 100)
+        elif not on and odd in links:
+            links.remove(odd)
+        self.save()
+        self.broadcast(self.layout())
+        self.broadcast({"t": "state", "v": m.values})
+
     def full(self, target):
         """Modelo + estado completo (al conectar un iPad o al cambiar de mesa)."""
         m = self.mixer
@@ -805,8 +850,14 @@ class Hub:
         t = msg.get("t")
         m = self.mixer
         if t == "set":
-            if m.set(msg.get("p"), msg.get("v")):
-                self.broadcast({"t": "upd", "v": {msg["p"]: m.values[msg["p"]]}}, skip=client)
+            key = msg.get("p")
+            if m.set(key, msg.get("v")):
+                self.broadcast({"t": "upd", "v": {key: m.values[key]}}, skip=client)
+                other = self.partner(key)
+                if other and m.set(other, m.values[key]):
+                    self.broadcast({"t": "upd", "v": {other: m.values[other]}})
+        elif t == "link":
+            self.link(int(msg.get("ch", 0)), bool(msg.get("on")))
         elif t == "connect":
             kind = msg.get("kind") if msg.get("kind") in MODELS else "wing"
             demo, ip = bool(msg.get("demo")), str(msg.get("ip", ""))
@@ -848,8 +899,17 @@ class Hub:
                 self.save()
                 self.broadcast(self.scenes())
         elif t == "layout":
-            self.cfg["layouts"][m.kind] = msg.get("v") or {}
+            v = msg.get("v") if isinstance(msg.get("v"), dict) else {}
+            cur = self.cfg["layouts"].setdefault(m.kind, {})
+            for k in ("custom", "groups"):
+                if isinstance(v.get(k), list):
+                    cur[k] = v[k]
             self.save()
+            self.broadcast(self.layout(), skip=client)
+        elif t == "reset":
+            self.cfg["layouts"][m.kind] = {}
+            self.save()
+            self.broadcast(self.layout())
 
     def welcome(self, client):
         self.full(client.send)
