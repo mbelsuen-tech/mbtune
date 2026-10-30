@@ -10,7 +10,17 @@ por OSC/UDP y sirve la interfaz táctil.
 
     iPad (Safari) ⇄ Wi-Fi ⇄ ordenador con MBMix ⇄ red ⇄ mesa (WING Rack, WING o XR18)
 
-## Arrancar
+## Instalar
+1. **En el ordenador** (el que va conectado a la mesa por cable o a su red):
+   - Windows: descarga `MBMix.exe` (GitHub → Actions → «Compilar MBMix» → Artifacts) y ábrelo.
+     Si sale «SmartScreen»: «Más información» → «Ejecutar de todas formas». Permite el acceso a la red.
+   - Mac: abre `MBMix.dmg`, arrastra MBMix a Aplicaciones y ábrelo con clic derecho → Abrir.
+     Permite «Red local» y las conexiones entrantes cuando lo pregunte.
+2. **En el iPad** (mismo Wi-Fi que el ordenador):
+   - Abre Safari y escribe la dirección que muestra MBMix en «Mesa» (ej. `http://192.168.1.20:8080`).
+   - Compartir → «Añadir a pantalla de inicio». Desde entonces se abre a pantalla completa, como una app.
+
+## Arrancar sin compilar
     python mbmix/mbmix.py            # abre la ventana (o el navegador) en este ordenador
     python mbmix/mbmix.py --server   # solo servidor (p. ej. en una Raspberry Pi)
 

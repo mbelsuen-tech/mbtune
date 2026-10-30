@@ -1003,7 +1003,17 @@ class Hub:
             writer.close()
 
     async def run(self, ready=None):
-        server = await asyncio.start_server(self.serve_conn, "0.0.0.0", PORT)
+        global PORT
+        server = None
+        for port in [PORT] + [p for p in range(8081, 8100) if p != PORT]:   # si el puerto está ocupado, prueba otro
+            try:
+                server = await asyncio.start_server(self.serve_conn, "0.0.0.0", port)
+                PORT = port
+                break
+            except OSError:
+                continue
+        if server is None:
+            raise OSError("no hay ningún puerto libre entre 8080 y 8099")
         asyncio.ensure_future(self.mixer.tick())
         res = await self.mixer.connect(self.cfg["kind"], self.cfg.get("demo", True),
                                        self.cfg.get("ips", {}).get(self.cfg["kind"], self.cfg.get("ip", "")))
@@ -1025,20 +1035,21 @@ def run_server(ready=None):
 
 
 def main():
-    url = f"http://127.0.0.1:{PORT}"
-    print(f"MB Soundtools · MBMix\n  En este ordenador: {url}\n  En el iPad (mismo Wi-Fi): http://{lan_ip()}:{PORT}")
     if "--server" in sys.argv:
+        print(f"MB Soundtools · MBMix\n  En el iPad (mismo Wi-Fi): http://{lan_ip()}:{PORT}")
         run_server()
         return
     ready = threading.Event()
     threading.Thread(target=run_server, args=(ready,), daemon=True).start()
     ready.wait(10)
+    url = f"http://127.0.0.1:{PORT}"
+    print(f"MB Soundtools · MBMix\n  En este ordenador: {url}\n  En el iPad (mismo Wi-Fi): http://{lan_ip()}:{PORT}")
     try:
         import webview  # pip install pywebview (opcional)
         webview.create_window("MB Soundtools · MBMix", url=url, width=1366, height=1024,
                               min_size=(1024, 700), background_color="#050505")
         webview.start()
-    except ImportError:
+    except Exception:   # sin pywebview o sin WebView2: se abre en el navegador
         import webbrowser
         webbrowser.open(url)
         try:
