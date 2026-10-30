@@ -428,3 +428,5 @@ body.zoomed{transform-origin:0 0}
 .gtitle::before{content:"";width:12px;height:28px;border-radius:4px;background:var(--c,var(--red))}
 #groupSendsSheet .sends{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
 #groupSendsSheet .card{width:min(860px,96vw)!important}
+.mixlist .mixhead{grid-column:1/-1;margin:10px 2px 0;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.mixlist .mixhead small{display:block;text-transform:none;letter-spacing:0;font-weight:500;margin-top:2px}

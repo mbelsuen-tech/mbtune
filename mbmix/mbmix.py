@@ -143,6 +143,7 @@ class Model:
         self.layers, self.targets, self.colors = [], [], []
         self.master, self.mgroups = "", 0
         self.mains = []            # salidas principales a las que se puede asignar un canal
+        self.mtx_targets = []      # matrices a las que envían los buses y los mains (WING)
 
     def p(self, key, path, typ, lo=0, hi=1, curve="lin", default=0, conv=None, otype=None, values=None):
         self.spec[key] = [typ, lo, hi, curve, default] + ([values] if values else [])
@@ -162,7 +163,7 @@ class Model:
     def describe(self):
         return {"t": "model", "kind": self.kind, "name": self.name, "strips": self.strips, "spec": self.spec,
                 "layers": self.layers, "targets": self.targets, "colors": self.colors, "master": self.master,
-                "mgroups": self.mgroups, "mains": self.mains}
+                "mgroups": self.mgroups, "mains": self.mains, "mtxTargets": self.mtx_targets}
 
 
 # ---------------------------------------------------- Behringer WING ----
@@ -178,8 +179,8 @@ def build_wing():
     m = Model("wing", "Behringer WING")
     m.colors, m.master, m.mgroups = WING_COLORS, "main1", 8
 
-    def strip(sid, kind, label, base, *, eq=None, gate=False, dyn=False, sends=False, pan=True, inp=False):
-        m.add_strip(sid, kind, label, eq=eq or [], gate=gate, dyn=dyn, sends=sends, pan=pan, inp=inp, trim=inp)
+    def strip(sid, kind, label, base, *, eq=None, gate=False, dyn=False, sends=False, pan=True, inp=False, mtx=False):
+        m.add_strip(sid, kind, label, eq=eq or [], gate=gate, dyn=dyn, sends=sends, pan=pan, inp=inp, trim=inp, mtxSends=mtx)
         k, p = sid + ".", m.p
         p(k + "name", base + "/name", "s", default="")
         p(k + "color", base + "/col", "i", 0, 12, default=0)
@@ -228,15 +229,19 @@ def build_wing():
                 p(f"{k}send.{b}.on", f"{base}/send/{b}/on", "b", default=1)
             for mn in range(1, 5):
                 p(f"{k}main.{mn}.on", f"{base}/main/{mn}/on", "b", default=1 if mn == 1 else 0)
+        if mtx:   # envíos de buses y mains a las matrices 1-8 (clave 101-108 para no chocar con los buses)
+            for x in range(1, 9):
+                p(f"{k}send.{100 + x}.lvl", f"{base}/send/{x}/lvl", "n", -144, 10, "fdr", -144.0)
+                p(f"{k}send.{100 + x}.on", f"{base}/send/{x}/on", "b", default=1)
 
     for n in range(1, 41):
         strip(f"ch{n}", "ch", f"Canal {n}", f"/ch/{n}", eq=EQ_WING_SMALL, gate=True, dyn=True, sends=True, inp=True)
     for n in range(1, 9):
         strip(f"aux{n}", "aux", f"Aux {n}", f"/aux/{n}", eq=EQ_WING_SMALL, dyn=True, sends=True, inp=True)
     for n in range(1, 17):
-        strip(f"bus{n}", "bus", f"Bus {n}", f"/bus/{n}", eq=EQ_WING_BIG, dyn=True)
+        strip(f"bus{n}", "bus", f"Bus {n}", f"/bus/{n}", eq=EQ_WING_BIG, dyn=True, mtx=True)
     for n in range(1, 5):
-        strip(f"main{n}", "main", f"Main {n}", f"/main/{n}", eq=EQ_WING_BIG, dyn=True)
+        strip(f"main{n}", "main", f"Main {n}", f"/main/{n}", eq=EQ_WING_BIG, dyn=True, mtx=True)
     for n in range(1, 9):
         strip(f"mtx{n}", "mtx", f"Matriz {n}", f"/mtx/{n}", eq=EQ_WING_BIG, dyn=True)
     for n in range(1, 17):
@@ -246,6 +251,7 @@ def build_wing():
         m.p(f"mg{g}.name", f"/mgrp/{g}/name", "s", default="")
     m.targets = [{"n": b, "id": f"bus{b}"} for b in range(1, 17)]
     m.mains = [{"n": n, "id": f"main{n}"} for n in range(1, 5)]
+    m.mtx_targets = [{"n": 100 + x, "id": f"mtx{x}"} for x in range(1, 9)]
     ids = lambda pre, a, b: [f"{pre}{i}" for i in range(a, b + 1)]
     m.layers = [{"id": "in1", "name": "1–16", "ids": ids("ch", 1, 16)},
                 {"id": "in2", "name": "17–32", "ids": ids("ch", 17, 32)},

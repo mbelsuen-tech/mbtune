@@ -47,7 +47,7 @@ y en Safari: Compartir → «Añadir a pantalla de inicio» para usarla a pantal
   Main LR fijo a la derecha.
 - **Vistas** según la mesa (WING: 1–16, 17–32, 33–40, Aux, Buses, Salidas, DCA · XR18: 1–16, Aux·FX,
   Buses, DCA), con grupos de mute y «Mi vista» personalizable.
-- **Faders = envíos** (sends on fader): elige un bus y los faders controlan los envíos a ese bus
+- **Faders = envíos** (sends on fader): elige un bus (o, en la WING, una matriz) y los faders controlan los envíos a ese destino
   (mezclas de monitores / in-ears).
 - **Vista de canal** (toca el nombre): Entrada (ganancia, ajuste fino, 48V, quitar graves, fase),
   Puerta, Compresor (con curva), Ecualizador gráfico (graves, 4 medios, agudos: arrastra los puntos,

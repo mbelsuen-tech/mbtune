@@ -50,14 +50,14 @@ const CONV_FADER=[x32pos,x32db],CONV_INV=[v=>v?0:1,x=>x?0:1],CONV_PAN=convLin(-1
 
 /* ---------------------------------------------------------------- modelos */
 class Model{
-  constructor(kind,name){Object.assign(this,{kind,name,strips:[],spec:{},path:{},conv:{},otype:{},layers:[],targets:[],colors:[],master:"",mgroups:0,mains:[]})}
+  constructor(kind,name){Object.assign(this,{kind,name,strips:[],spec:{},path:{},conv:{},otype:{},layers:[],targets:[],colors:[],master:"",mgroups:0,mains:[],mtxTargets:[]})}
   p(key,path,typ,lo=0,hi=1,curve="lin",def=0,o={}){
     this.spec[key]=[typ,lo,hi,curve,def].concat(o.values?[o.values]:[]);
     if(path)this.path[key]=path;if(o.conv)this.conv[key]=o.conv;
     this.otype[key]=o.otype||({s:"s",b:"i",i:"i"}[typ]||"f");
   }
   addStrip(id,kind,label,f){const st=Object.assign({id,kind,label,eq:[],eqTypes:false,gate:false,dyn:false,sends:false,pan:true,inp:false,trim:false,solo:true},f);this.strips.push(st);return st}
-  describe(){return{t:"model",kind:this.kind,name:this.name,strips:this.strips,spec:this.spec,layers:this.layers,targets:this.targets,colors:this.colors,master:this.master,mgroups:this.mgroups,mains:this.mains}}
+  describe(){return{t:"model",kind:this.kind,name:this.name,strips:this.strips,spec:this.spec,layers:this.layers,targets:this.targets,colors:this.colors,master:this.master,mgroups:this.mgroups,mains:this.mains,mtxTargets:this.mtxTargets}}
 }
 const rng=(a,b)=>Array.from({length:b-a+1},(_,i)=>a+i);
 const ids=(pre,a,b)=>rng(a,b).map(n=>pre+n);
@@ -69,8 +69,8 @@ const EQ_WS=["l","1","2","3","4","h"],EQ_WB=["l","1","2","3","4","5","6","h"];
 function buildWing(){
   const m=new Model("wing","Behringer WING");m.colors=WING_COLORS;m.master="main1";m.mgroups=8;
   const p=(...a)=>m.p(...a);
-  const strip=(sid,kind,label,base,{eq=null,gate=false,dyn=false,sends=false,pan=true,inp=false}={})=>{
-    m.addStrip(sid,kind,label,{eq:eq||[],gate,dyn,sends,pan,inp,trim:inp});const k=sid+".";
+  const strip=(sid,kind,label,base,{eq=null,gate=false,dyn=false,sends=false,pan=true,inp=false,mtx=false}={})=>{
+    m.addStrip(sid,kind,label,{eq:eq||[],gate,dyn,sends,pan,inp,trim:inp,mtxSends:mtx});const k=sid+".";
     p(k+"name",base+"/name","s",0,1,"lin","");p(k+"color",base+"/col","i",0,12,"lin",0);
     p(k+"fader",base+"/fdr","n",-144,10,"fdr",["ch","aux","mtx"].includes(kind)?-144:0);
     p(k+"mute",base+"/mute","b");p(k+"solo",base+"/$solo","b");
@@ -88,15 +88,16 @@ function buildWing(){
         p(`${k}eq.${b}.q`,`${base}/eq/${b}q`,"n",.44,10,"log","lh".includes(b)?.7:2)})}
     if(sends){for(let b=1;b<=16;b++){p(`${k}send.${b}.lvl`,`${base}/send/${b}/lvl`,"n",-144,10,"fdr",-144);p(`${k}send.${b}.on`,`${base}/send/${b}/on`,"b",0,1,"lin",1)}
       for(let mn=1;mn<=4;mn++)p(`${k}main.${mn}.on`,`${base}/main/${mn}/on`,"b",0,1,"lin",mn===1?1:0)}
+    if(mtx)for(let x=1;x<=8;x++){p(`${k}send.${100+x}.lvl`,`${base}/send/${x}/lvl`,"n",-144,10,"fdr",-144);p(`${k}send.${100+x}.on`,`${base}/send/${x}/on`,"b",0,1,"lin",1)}
   };
   for(const n of rng(1,40))strip("ch"+n,"ch","Canal "+n,"/ch/"+n,{eq:EQ_WS,gate:true,dyn:true,sends:true,inp:true});
   for(const n of rng(1,8))strip("aux"+n,"aux","Aux "+n,"/aux/"+n,{eq:EQ_WS,dyn:true,sends:true,inp:true});
-  for(const n of rng(1,16))strip("bus"+n,"bus","Bus "+n,"/bus/"+n,{eq:EQ_WB,dyn:true});
-  for(const n of rng(1,4))strip("main"+n,"main","Main "+n,"/main/"+n,{eq:EQ_WB,dyn:true});
+  for(const n of rng(1,16))strip("bus"+n,"bus","Bus "+n,"/bus/"+n,{eq:EQ_WB,dyn:true,mtx:true});
+  for(const n of rng(1,4))strip("main"+n,"main","Main "+n,"/main/"+n,{eq:EQ_WB,dyn:true,mtx:true});
   for(const n of rng(1,8))strip("mtx"+n,"mtx","Matriz "+n,"/mtx/"+n,{eq:EQ_WB,dyn:true});
   for(const n of rng(1,16))strip("dca"+n,"dca","DCA "+n,"/dca/"+n,{pan:false});
   for(const g of rng(1,8)){p(`mg${g}.mute`,`/mgrp/${g}/mute`,"b");p(`mg${g}.name`,`/mgrp/${g}/name`,"s",0,1,"lin","")}
-  m.targets=rng(1,16).map(b=>({n:b,id:"bus"+b}));m.mains=rng(1,4).map(n=>({n,id:"main"+n}));
+  m.targets=rng(1,16).map(b=>({n:b,id:"bus"+b}));m.mains=rng(1,4).map(n=>({n,id:"main"+n}));m.mtxTargets=rng(1,8).map(x=>({n:100+x,id:"mtx"+x}));
   m.layers=[{id:"in1",name:"1–16",ids:ids("ch",1,16)},{id:"in2",name:"17–32",ids:ids("ch",17,32)},{id:"in3",name:"33–40",ids:ids("ch",33,40)},
     {id:"aux",name:"Aux",ids:ids("aux",1,8)},{id:"bus",name:"Buses",ids:ids("bus",1,16)},{id:"out",name:"Salidas",ids:[...ids("main",1,4),...ids("mtx",1,8)]},
     {id:"dca",name:"DCA",ids:ids("dca",1,16)}];

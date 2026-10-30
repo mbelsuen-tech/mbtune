@@ -88,9 +88,13 @@ const NOCOLOR="#4a4a52";
 /* ================================================================ tiras */
 const nameOf=s=>S[s.id+".name"]||s.label;
 const colorOf=s=>(MODEL.colors[+S[s.id+".color"]||0]||[NOCOLOR])[0];
-const faderKey=(s,bus)=>bus&&s.sends?`${s.id}.send.${bus}.lvl`:s.id+".fader";
-const target=n=>MODEL.targets.find(t=>t.n===n);
+/* envíos: los canales envían a los buses (1-16); los buses y mains, a las matrices (101-108) */
+const sendsTo=(s,bus)=>!!bus&&(bus>100?!!s.mtxSends:!!s.sends);
+const faderKey=(s,bus)=>sendsTo(s,bus)?`${s.id}.send.${bus}.lvl`:s.id+".fader";
+const mtxTargets=()=>MODEL.mtxTargets||[];
+const target=n=>MODEL.targets.find(t=>t.n===n)||mtxTargets().find(t=>t.n===n);
 const busStrip=n=>BY[target(n)?.id];
+const busColor=n=>{const c=colorOf(busStrip(n));return c===NOCOLOR?"var(--red)":c};
 function bandName(s,b){const i=s.eq.indexOf(b),n=s.eq.length;return b==="l"||(i===0&&s.eqTypes)?"Graves":b==="h"||(i===n-1&&s.eqTypes)?"Agudos":"Medios "+(s.eqTypes?i:b)}
 function bandLetter(s,b){const i=s.eq.indexOf(b),n=s.eq.length;return i===0?"G":i===n-1?"A":String(s.eqTypes?i:b)}
 
@@ -104,7 +108,7 @@ function buildLayers(){LAYERS=[...MODEL.layers.map(l=>({id:l.id,name:l.name,ids:
 function stripKeys(s,bus){
   const k=s.id+".",p=[k+"name",k+"color",faderKey(s,bus),k+"mute"];
   if(s.solo)p.push(k+"solo");if(s.pan)p.push(k+"pan");
-  if(bus&&s.sends)p.push(`${k}send.${bus}.on`,`${target(bus).id}.color`);
+  if(sendsTo(s,bus))p.push(`${k}send.${bus}.on`,`${target(bus).id}.color`);
   if(s.eq.length){p.push(k+"eq.on");for(const b of s.eq)for(const x of["g","f","q","type"])p.push(`${k}eq.${b}.${x}`)}
   if(s.inp)p.push(k+"lc",k+"lcf");
   if(s.gate)p.push(k+"gate.on");if(s.dyn)p.push(k+"dyn.on");
@@ -117,7 +121,7 @@ const MUTE_ICON=`<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path
 
 function makeStrip(scope,s,{bus=0,detail=false}={}){
   const el=document.createElement("div");
-  const sendMode=!!(bus&&s.sends);
+  const sendMode=sendsTo(s,bus);
   el.className="strip"+(sendMode?" sendmode":"");el.dataset.id=s.id;
   const cn=s.kind==="ch"?+s.id.slice(2):0,lodd=cn%2?cn:cn-1,lk=cn&&layout.links.includes(lodd);
   const num=s.kind==="ch"?(lk?`${lodd}–${lodd+1} ⛓`:String(cn)):s.label;
@@ -142,7 +146,7 @@ function makeStrip(scope,s,{bus=0,detail=false}={}){
     if(s.pan){const p=+S[k+"pan"]/200+.5,b=q(".pan b");b.style.left=Math.min(50,p*100)+"%";b.style.width=Math.max(1.5,Math.abs(p-.5)*100)+"%";
       const r=Math.round(+S[k+"pan"]);q(".pan span").textContent=r===0?"C":r<0?"I"+(-r):"D"+r}
     if(sendMode){const so=sendOn?+S[sendOn]:1;q(".sendon").classList.toggle("on",!!so);el.classList.toggle("sendoff",!so);
-      q(".sendon").style.visibility=sendOn?"":"hidden";el.style.setProperty("--bus",colorOf(busStrip(bus)))}
+      q(".sendon").style.visibility=sendOn?"":"hidden";el.style.setProperty("--bus",busColor(bus))}
     drawProc(s,cv,q(".tags"));
   });
   if(s.id===detailId&&!detail)el.classList.add("selected");
@@ -223,7 +227,10 @@ function renderDesk(){
   unwatch("desk");unwatch("master");
   const box=$("#strips");box.innerHTML="";
   if(P.musician){if(!target(P.musician)){P.musician=0;savePrefs()}else sendBus=P.musician}
-  const LL=musicianLayers(),L=LL.find(l=>l.id===layer)||LL[0]||LAYERS[0];layer=L.id;
+  const LL=musicianLayers();let L=LL.find(l=>l.id===layer)||LL[0]||LAYERS[0];
+  if(sendBus>100&&!L.ids().some(id=>BY[id]?.mtxSends)){const alt=LL.find(l=>l.id==="out")||LL.find(l=>l.ids().some(id=>BY[id]?.mtxSends));
+    if(alt){L=alt;store("layer",alt.id);setTimeout(renderLayers,0)}}
+  layer=L.id;
   for(const id of L.ids())box.appendChild(groupOf(id)?makeGroupStrip("desk",groupOf(id)):makeStrip("desk",BY[id],{bus:sendBus}));
   if(layer==="grp"){const t=document.createElement("button");t.className="strip addtile";
     t.innerHTML=`<div><b>＋</b><br>Nuevo<br>grupo</div>`;t.onclick=()=>openGroupEditor(null);box.appendChild(t)}
@@ -236,9 +243,9 @@ function renderDesk(){
   const mbox=$("#master");mbox.innerHTML="";mbox.appendChild(makeStrip("master",ms));
   const sel=$("#mixSel");sel.classList.toggle("busmode",!!sendBus);
   watch("desk",[ms.id+".name",ms.id+".color"],()=>{
-    $("#mixName").textContent=sendBus?`${ms.label} · ${nameOf(ms)}`:"Principal";
-    sel.style.setProperty("--bus",sendBus?colorOf(ms):"var(--red)");
-    sel.querySelector("small").textContent=P.musician?"Modo músico · tu mezcla":sendBus?"Mezcla de monitor":"Estás mezclando";
+    $("#mixName").textContent=sendBus?(nameOf(ms)===ms.label?ms.label:`${ms.label} · ${nameOf(ms)}`):"Principal";
+    sel.style.setProperty("--bus",sendBus?busColor(sendBus):"var(--red)");
+    sel.querySelector("small").textContent=P.musician?"Modo músico · tu mezcla":sendBus>100?"Envíos a matriz":sendBus?"Mezcla de monitor":"Estás mezclando";
   });
   renderMonRow();
 }
@@ -256,7 +263,7 @@ function tabsFor(s){
   if(s.gate)t.push(["gate","Puerta",k+"gate.on"]);
   if(s.dyn)t.push(["dyn","Compresor",k+"dyn.on"]);
   if(s.eq.length)t.push(["eq","Ecualizador",k+"eq.on"]);
-  if(s.sends)t.push(["sends","Envíos",null]);
+  if(s.sends||s.mtxSends)t.push(["sends","Envíos",null]);
   t.push(["cfg","Canal",null]);
   return t;
 }
@@ -502,9 +509,10 @@ function eqTouch(g,s){
 
 /* ---------- Envíos ---------- */
 function paneSends(s,pane){
-  head(pane,"Envíos a monitores","Cuánto de este canal va a cada bus (monitores, cascos, efectos).");
+  if(s.mtxSends)head(pane,"Envíos a matrices","Cuánto de esta salida va a cada matriz (PA, delays, front fills, grabación…).");
+  else head(pane,"Envíos a monitores","Cuánto de este canal va a cada bus (monitores, cascos, efectos).");
   const grid=h("div","sends");
-  for(const{n}of MODEL.targets){
+  for(const{n}of(s.mtxSends?mtxTargets():MODEL.targets)){
     const bs=busStrip(n),lk=`${s.id}.send.${n}.lvl`,ok=SPEC[`${s.id}.send.${n}.on`]?`${s.id}.send.${n}.on`:null;
     const row=h("div","send"+(ok?"":" noon"),`<div class="who"><small>${esc(bs.label)}</small><span></span></div><div class="hslider"><b></b></div><div class="val"></div><button class="on">ON</button>`);
     watch("pane",[lk,ok,bs.id+".name",bs.id+".color"].filter(Boolean),()=>{
@@ -570,6 +578,8 @@ function openMix(){
     b.onclick=()=>{sendBus=n;store("sendBus",n);closeSheets();renderDesk()};list.appendChild(b)};
   mk(0,"Principal","La mezcla que oye el público","var(--red)");
   for(const t of MODEL.targets){const s=BY[t.id];mk(t.n,s.label,S[s.id+".name"]||"—",colorOf(s))}
+  if(mtxTargets().length){list.appendChild(h("div","mixhead","Matrices <small>los faders de los Mains y de los buses pasan a ser sus envíos a esa matriz</small>"));
+    for(const t of mtxTargets()){const s=BY[t.id];mk(t.n,s.label,S[s.id+".name"]||"—",colorOf(s))}}
   openSheet("#mixSheet");
 }
 $("#mixSel").onclick=()=>P.musician?toast("Modo músico activo: se cambia en Ajustes → Modo músico"):openMix();
@@ -624,7 +634,7 @@ function sendLayout(){send({t:"layout",v:{views:layout.views,groups:layout.group
 /* nivel de un grupo en una mezcla (main o bus n): mueve sus canales manteniendo la distancia entre ellos */
 const gKey=bus=>bus?"b"+bus:"main";
 const grpMembers=g=>g.m.map(id=>BY[id]).filter(Boolean);
-const grpKeys=(g,bus)=>grpMembers(g).filter(m=>!bus||m.sends).map(m=>faderKey(m,bus));
+const grpKeys=(g,bus)=>grpMembers(g).filter(m=>!bus||sendsTo(m,bus)).map(m=>faderKey(m,bus));
 const grpLevel=(g,bus)=>{const v=g.niv[gKey(bus)];return v==null?0:v};
 function grpStart(g,bus){
   const gd=grpLevel(g,bus),prev=(g.off||{})[gKey(bus)]||{},off={};
@@ -643,7 +653,7 @@ function makeGroupStrip(scope,g){
       <div class="track"><div class="fill"></div></div><div class="gap"></div><div class="fader-cap"></div></div>
     <div class="db"></div>`;
   const q=c=>el.querySelector(c);
-  if(sendBus){el.classList.add("sendmode");el.style.setProperty("--bus",colorOf(busStrip(sendBus)))}
+  if(sendBus){el.classList.add("sendmode");el.style.setProperty("--bus",busColor(sendBus))}
   watch(scope,[...grpMembers(g).map(m=>m.id+".mute"),...grpMembers(g).map(m=>m.id+".name")],()=>{
     const ms=grpMembers(g);q(".members").textContent=ms.map(nameOf).join(", ")||"Sin canales";
     const all=ms.length&&ms.every(m=>+S[m.id+".mute"]);q(".mute").classList.toggle("on",!!all);el.classList.toggle("muted",!!all)});
@@ -665,7 +675,7 @@ function openGroupSends(id){
   $("#gsMembers").textContent=grpMembers(g).map(nameOf).join(", ");
   $("#gsEdit").style.display=P.musician?"none":"";$("#gsEdit").onclick=()=>{closeSheets();openGroupEditor(g.id)};
   const box=$("#gsList");box.innerHTML="";
-  const rows=[[0,"Principal","Mezcla del público","var(--red)"],...MODEL.targets.map(t=>{const s=BY[t.id];return[t.n,nameOf(s),s.label,colorOf(s)]})]
+  const rows=[[0,"Principal","Mezcla del público","var(--red)"],...MODEL.targets.concat(mtxTargets()).map(t=>{const s=BY[t.id];return[t.n,nameOf(s),s.label,colorOf(s)]})]
     .filter(r=>!P.musician||r[0]===P.musician);
   for(const[bus,name,sub,c]of rows){
     if(bus&&!grpKeys(g,bus).length)continue;
@@ -714,7 +724,7 @@ function renderMonRow(){
   const mk=(n,label,sub,c)=>{const b=h("button","chip",`${esc(label)}<small>${esc(sub)}</small>`);b.style.setProperty("--c",c);b.classList.toggle("sel",n===sendBus);
     b.onclick=()=>{sendBus=n;store("sendBus",n);renderDesk()};r.appendChild(b)};
   mk(0,"Principal","Volver a la mezcla del público","var(--red)");
-  for(const t of MODEL.targets){const s=BY[t.id];mk(t.n,nameOf(s),s.label,colorOf(s))}
+  for(const t of(sendBus>100?mtxTargets():MODEL.targets)){const s=BY[t.id];mk(t.n,nameOf(s),s.label,colorOf(s))}
 }
 function renderSceneRow(){
   const r=$("#sceneRow");if(!r.classList.contains("show"))return;r.innerHTML="";
