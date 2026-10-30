@@ -10,7 +10,20 @@ por OSC/UDP y sirve la interfaz táctil.
 
     iPad (Safari) ⇄ Wi-Fi ⇄ ordenador con MBMix ⇄ red ⇄ mesa (WING Rack, WING o XR18)
 
-## Instalar
+## App para iPad (sin ordenador)
+La carpeta `ios/` contiene la app nativa: usa la misma interfaz y un motor en JavaScript (`web/engine.js`)
+que habla directamente con la mesa por la red del iPad, como Mixing Station. No necesita ordenador.
+
+GitHub Actions («Compilar MBMix», artefacto **MBMix-iPad**) genera:
+- `MBMix-iPad-sin-firmar.ipa`: la app, para instalarla firmándola con tu Apple ID
+  (por ejemplo con Sideloadly en Windows o Mac). Con un Apple ID gratuito caduca a los 7 días y hay que
+  volver a instalarla; con la cuenta de desarrollador de Apple (99 €/año) dura un año o se puede usar TestFlight.
+- `MBMix-Xcode.zip`: el proyecto para abrirlo en Xcode en un Mac (`ios/MBMix.xcodeproj`), elegir tu equipo
+  de firma y darle a ▶ con el iPad conectado.
+
+La primera vez el iPad pide permiso de «Red local»: hay que aceptarlo para que encuentre la mesa.
+
+## Instalar (versión con ordenador)
 1. **En el ordenador** (el que va conectado a la mesa por cable o a su red):
    - Windows: descarga `MBMix.exe` (GitHub → Actions → «Compilar MBMix» → Artifacts) y ábrelo.
      Si sale «SmartScreen»: «Más información» → «Ejecutar de todas formas». Permite el acceso a la red.

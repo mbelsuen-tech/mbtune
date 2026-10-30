@@ -13,8 +13,9 @@ let ws=null,wsTries=0;
 let layer=load("layer","in1"),sendBus=+load("sendBus",0),detailId=null,detailTab=null,eqBand=null;
 const active=new Set();          // parámetros que se están moviendo con el dedo (no se pisan con lo que llega)
 
-function load(k,d){try{const v=localStorage.getItem("mbmix."+k);return v==null?d:v}catch(e){return d}}
-function store(k,v){try{localStorage.setItem("mbmix."+k,v)}catch(e){}}
+function load(k,d){try{const n=window.MBNativeStore;if(n&&("ui."+k) in n)return n["ui."+k];const v=localStorage.getItem("mbmix."+k);return v==null?d:v}catch(e){return d}}
+function store(k,v){try{if(window.MBNativeStore){MBNativeStore["ui."+k]=String(v);window.webkit.messageHandlers.mbmix.postMessage({op:"save",key:"ui."+k,value:String(v)})}
+  localStorage.setItem("mbmix."+k,v)}catch(e){}}
 
 /* ---- personalización (se guarda en cada iPad) ---- */
 const PDEF={theme:"dark",cols:0,proc:1,pan:1,solo:1,scale:1,meter:1,big:0,dbl:1,fine:0,accent:"red",musician:0};
@@ -764,26 +765,33 @@ function paintSettings(){
     c.appendChild(h("h3","","Pantalla"));
     c.appendChild(sw("Canal en panel lateral","Al tocar un canal se abre a la derecha y sigues viendo los faders. Si lo apagas, ocupa toda la pantalla.",sidePanel(),()=>{store("panel",sidePanel()?"completa":"lateral");paintSettings()}));
     c.appendChild(sw("Mantener pantalla encendida","Evita que el iPad se apague durante el bolo.",!!wake,async()=>{
+      if(window.MBEngine&&MBEngine.native){wake=wake?null:{};send({t:"awake",on:!!wake});paintSettings();return}
       try{if(wake){await wake.release();wake=null}else{wake=await navigator.wakeLock.request("screen");wake.addEventListener("release",()=>{wake=null})}}
       catch(e){toast("Este navegador no permite mantener la pantalla encendida. En el iPad: Ajustes → Pantalla y brillo → Bloqueo automático → Nunca.")}paintSettings()}));
-    c.appendChild(sw("Pantalla completa","Oculta las barras del navegador (en el iPad, mejor «Añadir a pantalla de inicio»).",!!document.fullscreenElement,async()=>{
+    if(!(window.MBEngine&&MBEngine.native))c.appendChild(sw("Pantalla completa","Oculta las barras del navegador (en el iPad, mejor «Añadir a pantalla de inicio»).",!!document.fullscreenElement,async()=>{
       try{document.fullscreenElement?await document.exitFullscreen():await document.documentElement.requestFullscreen()}catch(e){toast("Este navegador no permite pantalla completa")}setTimeout(paintSettings,300)}));
   }else if(setSec==="ayuda"){
     c.appendChild(h("h3","","Cómo se usa"));c.appendChild($("#helpList").cloneNode(true));
   }else{
     c.appendChild(h("p","sub","MBMix · MB Soundtools"));c.appendChild(h("h3","","Datos"));
-    c.appendChild(h("p","sub","Mi vista, grupos y canales enlazados se guardan en el ordenador de MBMix y se comparten con todos los iPads. Las mezclas guardadas están en «Mezclas»."));
+    c.appendChild(h("p","sub",`Tus capas, grupos y canales enlazados se guardan ${STANDALONE?"en este iPad":"en el ordenador de MBMix y se comparten con todos los iPads"}. Las mezclas guardadas están en «Mezclas».`));
     c.appendChild(act("Restablecer vista, grupos y enlaces",function(){if(!this.dataset.c){this.dataset.c=1;this.textContent="¿Seguro? Toca otra vez";return}
       send({t:"reset"});["layer","sendBus","panel"].forEach(k=>{try{localStorage.removeItem("mbmix."+k)}catch(e){}});toast("Restablecido");closeSheets()},"btn danger"));
   }
 }
 
 /* ================================================================ conexión con el servidor MBMix */
-function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
+/* En la app del iPad (o abriendo la página con ?local) el motor corre aquí mismo; si no, se usa el servidor del ordenador */
+const STANDALONE=!!window.MBEngine&&(MBEngine.native||location.protocol==="file:"||new URLSearchParams(location.search).has("local"));
+function send(o){if(STANDALONE)MBEngine.handle(o);else if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
 function connectWs(){
+  if(STANDALONE){document.body.classList.add("standalone");MBEngine.start(handleMsg);return}
   ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws");
   ws.onopen=()=>{wsTries=0};
-  ws.onmessage=e=>{const m=JSON.parse(e.data);
+  ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+  ws.onclose=()=>{ws=null;$("#connDot").className="conn-dot";if(wsTries++>1)toast("Sin conexión con el ordenador de MBMix. Reintentando…");setTimeout(connectWs,Math.min(5000,500*wsTries))};
+}
+function handleMsg(m){
     switch(m.t){
       case"m":M=m.v;break;
       case"upd":{const ch=[];for(const p in m.v)if(!active.has(p)){S[p]=m.v[p];ch.push(p)}notify(ch);break}
@@ -810,8 +818,7 @@ function connectWs(){
         layout.views.forEach(v=>{v.ids=(v.ids||[]).filter(id=>BY[id]||id.startsWith("g:"))});
         layout.groups.forEach(g=>{g.niv=g.niv||{};g.m=(g.m||[]).filter(id=>BY[id])});layout.custom=layout.custom.filter(id=>BY[id]||groupOf(id));
         buildLayers();if(status.t){renderLayers();renderDesk();if(detailId&&detailTab==="cfg")renderPane(BY[detailId])}break}
-    }};
-  ws.onclose=()=>{ws=null;$("#connDot").className="conn-dot";if(wsTries++>1)toast("Sin conexión con el ordenador de MBMix. Reintentando…");setTimeout(connectWs,Math.min(5000,500*wsTries))};
+    }
 }
 window.addEventListener("resize",()=>notifyAll());
 applyPrefs();

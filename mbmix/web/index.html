@@ -68,10 +68,10 @@
     <div class="row" style="margin-top:18px"><button class="btn red" id="connectBtn" style="flex:1;height:54px;font-size:17px">Conectar</button></div>
     <div class="netmap" aria-label="Esquema de conexión">
       <div class="node"><b>iPad</b><small>Safari</small></div><div class="link" id="nl1"><span>Wi-Fi</span></div>
-      <div class="node"><b>Ordenador</b><small>MBMix</small></div><div class="link" id="nl2"><span>Red / cable</span></div>
+      <div class="node pc"><b>Ordenador</b><small>MBMix</small></div><div class="link pc" id="nl2"><span>Red / cable</span></div>
       <div class="node"><b id="nodeMixer">Mesa</b><small id="nodeIp">sin IP</small></div>
     </div>
-    <p class="hint">Para usarlo en el iPad: conecta el iPad al mismo Wi-Fi que este ordenador y abre en Safari<br><code id="lanUrl">—</code><br>
+    <p class="hint" id="lanHint">Para usarlo en el iPad: conecta el iPad al mismo Wi-Fi que este ordenador y abre en Safari<br><code id="lanUrl">—</code><br>
       Después, en Safari: Compartir → «Añadir a pantalla de inicio» para abrirlo a pantalla completa como una app.</p>
   </div>
 </section>
@@ -152,6 +152,7 @@
 </section>
 
 <div class="toast" id="toast"></div>
+<script src="engine.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

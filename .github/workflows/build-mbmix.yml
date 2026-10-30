@@ -7,6 +7,7 @@ on:
       - "mbmix/**"
       - "mbmix.spec"
       - "build_mbmix_*"
+      - "ios/**"
       - ".github/workflows/build-mbmix.yml"
 
 jobs:
@@ -36,3 +37,28 @@ jobs:
         with:
           name: MBMix-macOS
           path: dist/MBMix.dmg
+
+  ipad:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: cd ios && xcodegen generate
+      - name: Compilar la app del iPad (sin firmar)
+        run: |
+          xcodebuild -project ios/MBMix.xcodeproj -target MBMix -configuration Release -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" SYMROOT="$PWD/ios/build" build > build.log 2>&1 \
+            || { grep -E "error:|warning: .*Swift" -A3 build.log | head -120; tail -60 build.log; exit 1; }
+          tail -5 build.log
+          test -d ios/build/Release-iphoneos/MBMix.app
+      - name: Empaquetar .ipa y proyecto de Xcode
+        run: |
+          mkdir -p Payload && cp -R ios/build/Release-iphoneos/MBMix.app Payload/
+          zip -qry MBMix-iPad-sin-firmar.ipa Payload
+          rm -rf ios/build && zip -qry MBMix-Xcode.zip ios mbmix/web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MBMix-iPad
+          path: |
+            MBMix-iPad-sin-firmar.ipa
+            MBMix-Xcode.zip
