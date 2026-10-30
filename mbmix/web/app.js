@@ -639,7 +639,10 @@ const grpKeys=(g,bus)=>grpMembers(g).filter(m=>!bus||sendsTo(m,bus)).map(m=>fade
 /* El grupo funciona como mover todos sus faders a la vez con la mano: cada fader se desplaza el mismo
    recorrido que el del grupo (también los que están a -∞). Si uno llega al tope se queda ahí, pero recuerda
    su distancia y la recupera al volver. Si mueves un canal suelto, el grupo toma su nueva posición. */
-const grpPos=(g,bus)=>{const v=(g.pos||{})[gKey(bus)];return v==null?.75:v};
+/* punto de partida: en la mezcla principal, 0 dB; en un monitor o matriz, abajo del todo si ninguno de sus
+   canales envía todavía a ese destino, o 0 dB si ya hay algo enviado */
+const grpPos=(g,bus)=>{const v=(g.pos||{})[gKey(bus)];if(v!=null)return v;
+  return !bus||grpKeys(g,bus).some(k=>+S[k]>-89)?.75:0};
 function grpStart(g,bus){
   const gp=grpPos(g,bus),key=gKey(bus);g.off=g.off||{};const prev=g.off[key]||{},off={};
   for(const k of grpKeys(g,bus)){
