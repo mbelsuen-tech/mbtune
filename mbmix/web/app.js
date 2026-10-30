@@ -636,13 +636,20 @@ function sendLayout(){send({t:"layout",v:{views:layout.views,groups:layout.group
 const gKey=bus=>bus?"b"+bus:"main";
 const grpMembers=g=>g.m.map(id=>BY[id]).filter(Boolean);
 const grpKeys=(g,bus)=>grpMembers(g).filter(m=>!bus||sendsTo(m,bus)).map(m=>faderKey(m,bus));
-const grpLevel=(g,bus)=>{const v=g.niv[gKey(bus)];return v==null?0:v};
+/* El grupo funciona como mover todos sus faders a la vez con la mano: cada fader se desplaza el mismo
+   recorrido que el del grupo (también los que están a -∞). Si uno llega al tope se queda ahí, pero recuerda
+   su distancia y la recupera al volver. Si mueves un canal suelto, el grupo toma su nueva posición. */
+const grpPos=(g,bus)=>{const v=(g.pos||{})[gKey(bus)];return v==null?.75:v};
 function grpStart(g,bus){
-  const gd=grpLevel(g,bus),prev=(g.off||{})[gKey(bus)]||{},off={};
-  for(const k of grpKeys(g,bus)){const d=+S[k];off[k]=gd>-90?(d<=-89?null:d-gd):(prev[k]!==undefined?prev[k]:(d<=-89?null:d));hold(k)}
-  g.off=g.off||{};g.off[gKey(bus)]=off;return off;
+  const gp=grpPos(g,bus),key=gKey(bus);g.off=g.off||{};const prev=g.off[key]||{},off={};
+  for(const k of grpKeys(g,bus)){
+    const cur=FD.pos(+S[k]),o=prev[k];
+    off[k]=o!==undefined&&Math.abs(clamp(gp+o)-cur)<.006?o:cur-gp;hold(k);
+  }
+  g.off[key]=off;return off;
 }
-function grpSet(g,bus,gd,off){g.niv[gKey(bus)]=gd;for(const k in off){const o=off[k];setP(k,o===null||gd<=-90?-144:clamp(o+gd,-144,10))}}
+function grpSet(g,bus,gp,off){g.pos=g.pos||{};g.pos[gKey(bus)]=gp;for(const k in off)setP(k,FD.db(clamp(gp+off[k])))}
+const grpDb=(g,bus)=>F.db(FD.db(grpPos(g,bus)));
 function grpEnd(g,bus){grpKeys(g,bus).forEach(release);sendLayout()}
 
 function makeGroupStrip(scope,g){
@@ -658,11 +665,11 @@ function makeGroupStrip(scope,g){
   watch(scope,[...grpMembers(g).map(m=>m.id+".mute"),...grpMembers(g).map(m=>m.id+".name")],()=>{
     const ms=grpMembers(g);q(".members").textContent=ms.map(nameOf).join(", ")||"Sin canales";
     const all=ms.length&&ms.every(m=>+S[m.id+".mute"]);q(".mute").classList.toggle("on",!!all);el.classList.toggle("muted",!!all)});
-  const paint=()=>{const lv=grpLevel(g,sendBus),v=FD.pos(lv);q(".fader-cap").style.top=capPos(v);q(".fill").style.height=`calc((100% - 44px) * ${v.toFixed(4)})`;q(".db").textContent=F.db(lv)};
+  const paint=()=>{const v=grpPos(g,sendBus);q(".fader-cap").style.top=capPos(v);q(".fill").style.height=`calc((100% - 44px) * ${v.toFixed(4)})`;q(".db").textContent=grpDb(g,sendBus)};
   paint();
   let off={};
   const fader=q(".fader");
-  dragV(fader,()=>FD.pos(grpLevel(g,sendBus)),v=>{grpSet(g,sendBus,FD.db(v),off);paint()},
+  dragV(fader,()=>grpPos(g,sendBus),v=>{grpSet(g,sendBus,v,off);paint()},
     {start:()=>{off=grpStart(g,sendBus)},end:()=>grpEnd(g,sendBus),dbl:null,travel:()=>fader.clientHeight-44});
   q(".mute").onclick=()=>{if(locked)return;const ms=grpMembers(g),all=ms.length&&ms.every(m=>+S[m.id+".mute"]);ms.forEach(m=>setP(m.id+".mute",all?0:1))};
   q(".scribble").onclick=()=>openGroupSends(g.id);
@@ -682,9 +689,9 @@ function openGroupSends(id){
     if(bus&&!grpKeys(g,bus).length)continue;
     const row=h("div","send noon",`<div class="who"><small>${esc(sub)}</small><span>${esc(name)}</span></div><div class="hslider"><b></b></div><div class="val"></div>`);
     row.querySelector(".who").style.setProperty("--c",c);
-    const sl=row.querySelector(".hslider"),paint=()=>{const lv=grpLevel(g,bus);sl.querySelector("b").style.width=(FD.pos(lv)*100)+"%";row.querySelector(".val").textContent=F.db(lv)};
+    const sl=row.querySelector(".hslider"),paint=()=>{sl.querySelector("b").style.width=(grpPos(g,bus)*100)+"%";row.querySelector(".val").textContent=grpDb(g,bus)};
     paint();let off={};
-    dragH(sl,()=>FD.pos(grpLevel(g,bus)),v=>{grpSet(g,bus,FD.db(v),off);paint()},{start:()=>{off=grpStart(g,bus)},end:()=>{grpEnd(g,bus);if(bus===sendBus)renderDesk()},travel:()=>sl.clientWidth});
+    dragH(sl,()=>grpPos(g,bus),v=>{grpSet(g,bus,v,off);paint()},{start:()=>{off=grpStart(g,bus)},end:()=>{grpEnd(g,bus);if(bus===sendBus)renderDesk()},travel:()=>sl.clientWidth});
     box.appendChild(row);
   }
   openSheet("#groupSendsSheet");
@@ -693,7 +700,7 @@ function openGroupSends(id){
 let gEd=null;
 function openGroupEditor(id){
   const g=layout.groups.find(x=>x.id===id);
-  gEd=g?{...g,m:[...g.m]}:{id:"g"+Date.now().toString(36),n:"",c:GROUP_COLORS[layout.groups.length%GROUP_COLORS.length],m:[],niv:{}};
+  gEd=g?{...g,m:[...g.m]}:{id:"g"+Date.now().toString(36),n:"",c:GROUP_COLORS[layout.groups.length%GROUP_COLORS.length],m:[],pos:{}};
   $("#grpTitle").textContent=g?"Editar grupo":"Nuevo grupo";$("#grpDel").style.display=g?"":"none";
   $("#grpName").value=gEd.n;paintGroupEditor();openSheet("#groupSheet");
 }
@@ -909,7 +916,7 @@ function handleMsg(m){
       case"layout":{layout=Object.assign({custom:[],groups:[],links:[],views:[]},m.v||{});for(const k of["custom","groups","links","views"])if(!Array.isArray(layout[k]))layout[k]=[];
         if(!layout.views.length&&layout.custom.length)layout.views=[{id:"v1",name:"Mi vista",ids:layout.custom}];
         layout.views.forEach(v=>{v.ids=(v.ids||[]).filter(id=>BY[id]||id.startsWith("g:"))});
-        layout.groups.forEach(g=>{g.niv=g.niv||{};g.m=(g.m||[]).filter(id=>BY[id])});layout.custom=layout.custom.filter(id=>BY[id]||groupOf(id));
+        layout.groups.forEach(g=>{if(g.niv){delete g.niv;delete g.off}g.pos=g.pos||{};g.m=(g.m||[]).filter(id=>BY[id])});layout.custom=layout.custom.filter(id=>BY[id]||groupOf(id));
         buildLayers();if(status.t){renderLayers();renderDesk();if(detailId&&detailTab==="cfg")renderPane(BY[detailId])}break}
     }
 }
