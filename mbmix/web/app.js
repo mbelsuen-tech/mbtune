@@ -749,6 +749,47 @@ function toggleFull(){
 function fullHelp(){toast("Aquí no se puede poner a pantalla completa. Usa «Tamaño» en Ajustes → Personalizar, o la app MBMix del iPad, que siempre va a pantalla completa.")}
 if(window.MBEngine&&MBEngine.native)$("#fsBtn").remove();else $("#fsBtn").onclick=toggleFull;
 
+/* ================================================================ instalar en la pantalla de inicio */
+const INSTALL_URL="https://mbelsuen-tech.github.io/mbtune/";
+let installEvt=null;
+const isInstalled=()=>matchMedia("(display-mode: standalone)").matches||matchMedia("(display-mode: fullscreen)").matches||navigator.standalone===true;
+const isNativeApp=()=>!!(window.MBEngine&&MBEngine.native);
+const isIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+function paintInstall(){
+  const show=!isInstalled()&&!isNativeApp();$("#instBtn").hidden=!show;
+  if(isInstalled())$("#fsBtn")?.remove();
+}
+function openInstall(){
+  const b=$("#instBody");
+  if(window.MBMIX_ARTIFACT){
+    b.innerHTML=`<p class="sub">Desde aquí no se puede instalar: esta página va dentro de Claude. Abre la versión instalable en <b>Safari</b> en el iPad:</p>
+      <div class="row"><input class="field" id="instUrl" readonly value="${INSTALL_URL}"><button class="btn" id="instCopy">Copiar</button></div>
+      <p class="hint">También puedes tocar el enlace: <a href="${INSTALL_URL}" target="_blank" rel="noopener" style="color:var(--red)">${INSTALL_URL}</a><br>Allí verás el botón «Instalar» y los pasos.</p>`;
+    $("#instCopy").onclick=()=>{const i=$("#instUrl");navigator.clipboard?.writeText(INSTALL_URL).then(()=>toast("Dirección copiada")).catch(()=>{i.select()});i.select()};
+  }else if(installEvt){
+    b.innerHTML=`<p class="sub">MBMix tendrá su icono en la pantalla de inicio y se abrirá a pantalla completa, sin barras del navegador.</p>
+      <button class="btn red" id="instGo" style="width:100%;height:54px;font-size:17px">Instalar MBMix</button>`;
+    $("#instGo").onclick=async()=>{installEvt.prompt();const r=await installEvt.userChoice.catch(()=>null);installEvt=null;closeSheets();if(r&&r.outcome==="accepted")toast("MBMix instalado")};
+  }else{
+    b.innerHTML=`<p class="sub">Así MBMix tendrá su icono en el iPad y se abrirá a pantalla completa, como una app. Solo hay que hacerlo una vez:</p>
+      <ol class="steps">
+        <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 12v8h14v-8"/></svg></span><div><b>Toca el botón Compartir</b><small>Arriba a la derecha en Safari (el cuadrado con la flecha hacia arriba).</small></div></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg></span><div><b>Elige «Añadir a pantalla de inicio»</b><small>Si no lo ves, baja un poco en la lista.</small></div></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span><div><b>Pulsa «Añadir»</b><small>Aparecerá el icono de MBMix en el escritorio del iPad. Ábrelo desde ahí.</small></div></li>
+      </ol>
+      ${isIOS()?"":`<p class="hint">Si usas otro navegador, busca en su menú «Instalar app» o «Añadir a pantalla de inicio».</p>`}`;
+  }
+  openSheet("#installSheet");
+}
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;paintInstall()});
+window.addEventListener("appinstalled",()=>{installEvt=null;paintInstall();toast("MBMix instalado")});
+$("#instBtn").onclick=openInstall;
+paintInstall();
+if("serviceWorker"in navigator&&location.protocol==="https:"&&!isNativeApp()&&!window.MBMIX_ARTIFACT)
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+if(!isInstalled()&&!isNativeApp()&&!window.MBMIX_ARTIFACT&&isIOS()&&!load("instSeen","")){
+  const ask=()=>{if(document.querySelector(".sheet.show")){setTimeout(ask,1500);return}store("instSeen",1);openInstall()};setTimeout(ask,1500)}
+
 /* ================================================================ bloqueo */
 $("#lockBtn").onclick=()=>{locked=!locked;document.body.classList.toggle("locked",locked);$("#lockBtn").classList.toggle("on",locked);
   $("#lockBtn small").textContent=locked?"Bloqueado":"Bloquear";toast(locked?"Controles bloqueados: toca el candado para desbloquear":"Controles desbloqueados")};
@@ -834,7 +875,7 @@ function paintSettings(){
 
 /* ================================================================ conexión con el servidor MBMix */
 /* En la app del iPad (o abriendo la página con ?local) el motor corre aquí mismo; si no, se usa el servidor del ordenador */
-const STANDALONE=!!window.MBEngine&&(MBEngine.native||window.MBMIX_LOCAL||location.protocol==="file:"||new URLSearchParams(location.search).has("local"));
+const STANDALONE=!!window.MBEngine&&(MBEngine.native||window.MBMIX_LOCAL||location.protocol==="file:"||/github\.io$/.test(location.hostname)||new URLSearchParams(location.search).has("local"));
 function send(o){if(STANDALONE)MBEngine.handle(o);else if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
 function connectWs(){
   if(STANDALONE){document.body.classList.add("standalone");MBEngine.start(handleMsg);return}

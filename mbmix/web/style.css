@@ -430,3 +430,10 @@ body.zoomed{transform-origin:0 0}
 #groupSendsSheet .card{width:min(860px,96vw)!important}
 .mixlist .mixhead{grid-column:1/-1;margin:10px 2px 0;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
 .mixlist .mixhead small{display:block;text-transform:none;letter-spacing:0;font-weight:500;margin-top:2px}
+/* instalar */
+.tbtn.inst{box-shadow:inset 0 0 0 2px var(--red)} .tbtn.inst small{color:var(--text)}
+.steps{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.steps li{display:flex;gap:14px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--wellbg);border:1px solid var(--edge)}
+.steps .ico{width:44px;height:44px;flex:none;border-radius:12px;background:var(--btn);border:1px solid var(--edge);display:flex;align-items:center;justify-content:center}
+.steps .ico svg{width:24px;height:24px;stroke:var(--red);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.steps b{display:block;font-size:16px} .steps small{display:block;color:var(--muted);font-size:13px;margin-top:2px;line-height:1.35}

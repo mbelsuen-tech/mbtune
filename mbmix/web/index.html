@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MBMix">
 <meta name="theme-color" content="#050505">
-<link rel="apple-touch-icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>MBMix</title>
@@ -24,6 +24,7 @@
   <button class="tbtn" id="connBtn" title="Conectar la mesa"><svg viewBox="0 0 24 24"><path d="M4 19V9M9 19V5M14 19v-7M19 19V3"/></svg><small id="connState">Mesa</small><span class="conn-dot" id="connDot"></span></button>
   <button class="tbtn" id="setBtn" title="Ajustes y ayuda"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><small>Ajustes</small></button>
   <button class="tbtn" id="fsBtn" title="Pantalla completa"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><small>Pantalla</small></button>
+  <button class="tbtn inst" id="instBtn" title="Poner MBMix en la pantalla de inicio" hidden><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><small>Instalar</small></button>
   <button class="tbtn lock" id="lockBtn" title="Bloquear los controles para no tocar nada sin querer"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><small>Bloquear</small></button>
 </header>
 
@@ -160,6 +161,15 @@
   <div class="card settings">
     <nav class="setnav" id="setNav"></nav>
     <div class="setbody"><button class="close" data-close>✕</button><div id="setBody"></div></div>
+  </div>
+</section>
+
+<!-- instalar en el iPad -->
+<section class="sheet" id="installSheet">
+  <div class="card" style="width:min(640px,94vw)">
+    <button class="close" data-close>✕</button>
+    <h2>Instalar MBMix</h2>
+    <div id="instBody"></div>
   </div>
 </section>
 
