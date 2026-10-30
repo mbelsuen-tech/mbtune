@@ -17,14 +17,22 @@ function load(k,d){try{const v=localStorage.getItem("mbmix."+k);return v==null?d
 function store(k,v){try{localStorage.setItem("mbmix."+k,v)}catch(e){}}
 
 /* ---- personalización (se guarda en cada iPad) ---- */
-const PDEF={cols:0,proc:1,pan:1,solo:1,scale:1,meter:1,big:0,dbl:1,fine:0,accent:"red",musician:0};
+const PDEF={theme:"dark",cols:0,proc:1,pan:1,solo:1,scale:1,meter:1,big:0,dbl:1,fine:0,accent:"red",musician:0};
 let P=Object.assign({},PDEF,(()=>{try{return JSON.parse(load("prefs","{}"))}catch(e){return{}}})());
 const ACCENTS={red:["Rojo MB","#e3101c","#ef2430","#b80c16","#7a0710","227,16,28"],blue:["Azul","#2f7bf2","#4b8ff7","#1a5fd0","#0f3a80","47,123,242"],
   green:["Verde","#22b357","#34d27b","#16863f","#0c4a23","34,179,87"],amber:["Ámbar","#f29a0f","#ffb238","#c97800","#6a3f00","242,154,15"],
   purple:["Morado","#9b4de0","#b06ad8","#7330b0","#3f1a63","155,77,224"],cyan:["Cian","#14b8c8","#38d0de","#0c8a96","#064a50","20,184,200"]};
 const ACC=()=>(ACCENTS[P.accent]||ACCENTS.red)[1],ACCRGB=()=>(ACCENTS[P.accent]||ACCENTS.red)[5];
+const CVC={};
+function tc(k){if(!(k in CVC))CVC[k]=getComputedStyle(document.documentElement).getPropertyValue("--cv-"+k).trim()||"#888";return CVC[k]}
+const darkMQ=matchMedia("(prefers-color-scheme: dark)");
+function applyTheme(){const t=P.theme==="auto"?(darkMQ.matches?"dark":"light"):P.theme;
+  document.documentElement.dataset.theme=t;for(const k in CVC)delete CVC[k];
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content",t==="light"?"#e7e9ed":"#050505")}
+darkMQ.addEventListener?.("change",()=>{if(P.theme==="auto"){applyTheme();notifyAll()}});
 function savePrefs(){store("prefs",JSON.stringify(P));applyPrefs()}
 function applyPrefs(){
+  applyTheme();
   const b=document.body.classList;for(const k of["proc","pan","solo","scale","meter"])b.toggle("hide-"+k,!P[k]);
   b.toggle("bignames",!!P.big);b.toggle("musician",!!P.musician);
   const a=ACCENTS[P.accent]||ACCENTS.red,r=document.documentElement.style;
@@ -157,9 +165,9 @@ function drawProc(s,cv,tags){
   if(!s.eq.length)return;
   requestAnimationFrame(()=>{const r=fitCanvas(cv);if(!r)return;const[ctx,w,h]=r;ctx.clearRect(0,0,w,h);
     const on=+S[k+"eq.on"],pts=eqCurve(s,40);
-    ctx.strokeStyle="#222";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
+    ctx.strokeStyle=tc("grid");ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
     ctx.beginPath();pts.forEach(([x,d],i)=>{const X_=x*w,Y=h/2-clamp(d,-18,18)/18*(h/2-3);i?ctx.lineTo(X_,Y):ctx.moveTo(X_,Y)});
-    const c=colorOf(s);ctx.strokeStyle=on?(c===NOCOLOR?ACC():c):"#3a3a40";ctx.lineWidth=1.6;ctx.stroke()});
+    const c=colorOf(s);ctx.strokeStyle=on?(c===NOCOLOR?ACC():c):tc("off");ctx.lineWidth=1.6;ctx.stroke()});
 }
 
 /* ================================================================ arrastre (relativo, como en la app original) */
@@ -291,11 +299,11 @@ function knob(scope,{label,key,fmt,def}){
   el.innerHTML=`<h4>${label}</h4><svg viewBox="0 0 80 80"></svg><b></b>`;
   const svg=el.querySelector("svg");
   watch(scope,[key],()=>{const t=norm(key),a=-135+270*t,[px,py]=polar(40,40,22,a),[qx,qy]=polar(40,40,10,a);
-    svg.innerHTML=`<defs><radialGradient id="${id}" cx="40%" cy="30%" r="75%"><stop offset="0" stop-color="#3a3a40"/><stop offset=".55" stop-color="#18181b"/><stop offset="1" stop-color="#0b0b0c"/></radialGradient></defs>
-      <path d="${arc(40,40,35,-135,135)}" stroke="#0b0b0d" stroke-width="7" fill="none" stroke-linecap="round"/>
+    svg.innerHTML=`<defs><radialGradient id="${id}" cx="40%" cy="30%" r="75%"><stop offset="0" style="stop-color:var(--k1)"/><stop offset=".55" style="stop-color:var(--k2)"/><stop offset="1" style="stop-color:var(--k3)"/></radialGradient></defs>
+      <path d="${arc(40,40,35,-135,135)}" style="stroke:var(--k-track)" stroke-width="7" fill="none" stroke-linecap="round"/>
       ${t>.003?`<path d="${arc(40,40,35,-135,a)}" stroke="var(--red)" stroke-width="5" fill="none" stroke-linecap="round" style="filter:drop-shadow(0 0 3px var(--red))"/>`:""}
-      <circle cx="40" cy="41" r="27" fill="#000" opacity=".5"/><circle cx="40" cy="40" r="27" fill="url(#${id})" stroke="#2e2e34"/>
-      <line x1="${qx.toFixed(1)}" y1="${qy.toFixed(1)}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="#fff" stroke-width="3" stroke-linecap="round"/>`;
+      <circle cx="40" cy="41" r="27" fill="#000" opacity=".35"/><circle cx="40" cy="40" r="27" fill="url(#${id})" style="stroke:var(--k-edge)"/>
+      <line x1="${qx.toFixed(1)}" y1="${qy.toFixed(1)}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" style="stroke:var(--k-ptr)" stroke-width="3" stroke-linecap="round"/>`;
     el.querySelector("b").textContent=fmt(S[key])});
   const d=def!=null?def:SPEC[key][4];
   dragV(el,()=>norm(key),n=>setN(key,n),{start:()=>hold(key),end:()=>release(key),dbl:()=>setP(key,d),travel:()=>220});
@@ -377,15 +385,15 @@ function paneDyn(s,pane){
 function transferGraph(cv,fn,thr,on,id){
   const r=fitCanvas(cv);if(!r)return;const[ctx,w,hh]=r;const lo=-80,span=-lo;
   const px=x=>(x-lo)/span*w,py=y=>hh-(clamp(y,lo-10,10)-lo)/span*hh;
-  ctx.clearRect(0,0,w,hh);ctx.strokeStyle="#1d1d21";ctx.lineWidth=1;ctx.font="11px "+font();ctx.fillStyle="#55555c";
+  ctx.clearRect(0,0,w,hh);ctx.strokeStyle=tc("grid");ctx.lineWidth=1;ctx.font="11px "+font();ctx.fillStyle=tc("label");
   for(let d=lo;d<=0;d+=10){ctx.beginPath();ctx.moveTo(px(d),0);ctx.lineTo(px(d),hh);ctx.moveTo(0,py(d));ctx.lineTo(w,py(d));ctx.stroke();if(d>lo)ctx.fillText(d,px(d)+3,hh-4)}
-  ctx.strokeStyle="#2e2e34";ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(px(lo),py(lo));ctx.lineTo(px(0),py(0));ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle=tc("grid2");ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(px(lo),py(lo));ctx.lineTo(px(0),py(0));ctx.stroke();ctx.setLineDash([]);
   ctx.strokeStyle=`rgba(${ACCRGB()},.5)`;ctx.beginPath();ctx.moveTo(px(thr),0);ctx.lineTo(px(thr),hh);ctx.stroke();
   ctx.beginPath();for(let x=lo;x<=0;x+=.5){const y=fn(x);x===lo?ctx.moveTo(px(x),py(y)):ctx.lineTo(px(x),py(y))}
-  ctx.strokeStyle=on?ACC():"#55555c";ctx.lineWidth=3;ctx.shadowColor=ACC();ctx.shadowBlur=on?10:0;ctx.stroke();ctx.shadowBlur=0;
+  ctx.strokeStyle=on?ACC():tc("label");ctx.lineWidth=3;ctx.shadowColor=ACC();ctx.shadowBlur=on?10:0;ctx.stroke();ctx.shadowBlur=0;
   const lv=M[id]?.[0]||0,ldb=lv>0?20*Math.log10(lv):-100;
-  if(status.meters&&ldb>lo){ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(px(ldb),py(fn(ldb)),6,0,7);ctx.fill()}
-  ctx.fillStyle="#8b8b93";ctx.fillText("Umbral "+(+thr).toFixed(1)+" dB  ·  desliza el dedo sobre el gráfico para moverlo",10,16);
+  if(status.meters&&ldb>lo){ctx.fillStyle=tc("dot");ctx.beginPath();ctx.arc(px(ldb),py(fn(ldb)),6,0,7);ctx.fill()}
+  ctx.fillStyle=tc("label2");ctx.fillText("Umbral "+(+thr).toFixed(1)+" dB  ·  desliza el dedo sobre el gráfico para moverlo",10,16);
 }
 
 /* ---------- Ecualizador ---------- */
@@ -443,11 +451,11 @@ function eqXY(s,b,w,hh){const p=`${s.id}.eq.${b}.`;return[hzX(+S[p+"f"])*w,hasGa
 function drawEq(cv,s){
   const r=fitCanvas(cv);if(!r)return;const[ctx,w,hh]=r,on=+S[s.id+".eq.on"];
   ctx.clearRect(0,0,w,hh);ctx.lineWidth=1;ctx.font="11px "+font();
-  for(const[f,l]of[[20,"20"],[50,"50"],[100,"100"],[200,"200"],[500,"500"],[1000,"1k"],[2000,"2k"],[5000,"5k"],[10000,"10k"]]){const x=hzX(f)*w;ctx.strokeStyle="#1d1d21";ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,hh);ctx.stroke();
-    ctx.fillStyle="#55555c";ctx.fillText(l,x+3,hh-5)}
-  ctx.fillStyle="#3a3a40";ctx.font="12px "+font();ctx.fillText("GRAVES",hzX(60)*w,18);ctx.fillText("MEDIOS",hzX(900)*w,18);ctx.fillText("AGUDOS",hzX(9000)*w,18);ctx.font="11px "+font();
-  for(const d of[-15,-10,-5,0,5,10,15]){const y=hh/2-d/18*(hh/2);ctx.strokeStyle=d?"#1d1d21":"#2e2e34";ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-    if(d){ctx.fillStyle="#55555c";ctx.fillText((d>0?"+":"")+d,4,y-3)}}
+  for(const[f,l]of[[20,"20"],[50,"50"],[100,"100"],[200,"200"],[500,"500"],[1000,"1k"],[2000,"2k"],[5000,"5k"],[10000,"10k"]]){const x=hzX(f)*w;ctx.strokeStyle=tc("grid");ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,hh);ctx.stroke();
+    ctx.fillStyle=tc("label");ctx.fillText(l,x+3,hh-5)}
+  ctx.fillStyle=tc("off");ctx.font="12px "+font();ctx.fillText("GRAVES",hzX(60)*w,18);ctx.fillText("MEDIOS",hzX(900)*w,18);ctx.fillText("AGUDOS",hzX(9000)*w,18);ctx.font="11px "+font();
+  for(const d of[-15,-10,-5,0,5,10,15]){const y=hh/2-d/18*(hh/2);ctx.strokeStyle=d?tc("grid"):tc("grid2");ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
+    if(d){ctx.fillStyle=tc("label");ctx.fillText((d>0?"+":"")+d,4,y-3)}}
   const Y=d=>hh/2-clamp(d,-20,20)/18*(hh/2);
   s.eq.forEach((b,i)=>{const pts=eqCurve(s,160,b);ctx.beginPath();pts.forEach(([x,d],k)=>k?ctx.lineTo(x*w,Y(d)):ctx.moveTo(x*w,Y(d)));
     ctx.strokeStyle=EQ_COL[i%EQ_COL.length]+(b===eqBand?"aa":"44");ctx.lineWidth=b===eqBand?1.6:1;ctx.stroke()});
@@ -456,12 +464,12 @@ function drawEq(cv,s){
   const gr=ctx.createLinearGradient(0,0,0,hh);gr.addColorStop(0,on?`rgba(${ACCRGB()},.35)`:"rgba(120,120,130,.2)");gr.addColorStop(.5,`rgba(${ACCRGB()},.04)`);gr.addColorStop(1,on?`rgba(${ACCRGB()},.35)`:"rgba(120,120,130,.2)");
   ctx.fillStyle=gr;ctx.fill();
   ctx.beginPath();pts.forEach(([x,d],k)=>k?ctx.lineTo(x*w,Y(d)):ctx.moveTo(x*w,Y(d)));
-  ctx.strokeStyle=on?ACC():"#6a6a72";ctx.lineWidth=3;ctx.shadowColor=ACC();ctx.shadowBlur=on?12:0;ctx.stroke();ctx.shadowBlur=0;
+  ctx.strokeStyle=on?ACC():tc("off");ctx.lineWidth=3;ctx.shadowColor=ACC();ctx.shadowBlur=on?12:0;ctx.stroke();ctx.shadowBlur=0;
   s.eq.forEach((b,i)=>{const[x,y]=eqXY(s,b,w,hh),sel=b===eqBand,c=EQ_COL[i%EQ_COL.length];
-    ctx.beginPath();ctx.arc(x,y,sel?16:13,0,7);ctx.fillStyle=sel?c:"#111";ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle=c;ctx.stroke();
-    ctx.fillStyle=sel?"#000":"#fff";ctx.font="bold 12px "+font();ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(bandLetter(s,b),x,y+1);
+    ctx.beginPath();ctx.arc(x,y,sel?16:13,0,7);ctx.fillStyle=sel?c:tc("node");ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle=c;ctx.stroke();
+    ctx.fillStyle=sel?"#000":tc("nodetxt");ctx.font="bold 12px "+font();ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(bandLetter(s,b),x,y+1);
     ctx.textAlign="left";ctx.textBaseline="alphabetic";ctx.font="11px "+font()});
-  if(s.inp&&+S[s.id+".lc"]){const x=hzX(+S[s.id+".lcf"])*w;ctx.fillStyle="#8b8b93";ctx.fillText("Graves quitados hasta "+F.hz(S[s.id+".lcf"]),x+4,34)}
+  if(s.inp&&+S[s.id+".lc"]){const x=hzX(+S[s.id+".lcf"])*w;ctx.fillStyle=tc("label2");ctx.fillText("Graves quitados hasta "+F.hz(S[s.id+".lcf"]),x+4,34)}
 }
 function eqTouch(g,s){
   const pts=new Map();let band=null,start=null,pinch=null;
@@ -514,7 +522,7 @@ function paneCfg(s,pane){
   const inp=h("input","field");inp.maxLength=16;inp.placeholder=s.label;inp.style.maxWidth="420px";inp.value=S[nk]||"";
   inp.maxLength=MODEL.kind==="xair"?12:16;inp.oninput=()=>setP(nk,inp.value);pane.appendChild(inp);
   const cols=h("div","colors");
-  MODEL.colors.forEach(([c,name],i)=>{const b=h("button","",name);b.style.cssText=`background:#0b0b0d;color:${i?c:"#8b8b93"};box-shadow:inset 0 6px 0 ${c}`;
+  MODEL.colors.forEach(([c,name],i)=>{const b=h("button","",name);b.style.cssText=`background:#0b0b0d;color:${i?c:tc("label2")};box-shadow:inset 0 6px 0 ${c}`;
     b.onclick=()=>setP(ck,i);cols.appendChild(b)});
   watch("pane",[ck],()=>[...cols.children].forEach((b,i)=>b.classList.toggle("sel",i===+S[ck])));
   pane.appendChild(h("h3","sec","Color"));pane.appendChild(cols);
@@ -708,6 +716,7 @@ function paintSettings(){
     c.appendChild(h("h3","","Personalizar"));c.appendChild(h("p","sub","Elige cómo se ve y cómo responde la mesa en este iPad. Cada iPad puede tenerlo a su gusto."));
     const seg=(label,sub,opts,cur,fn)=>{const r=h("div","setrow",`<div><b>${label}</b><small>${sub}</small></div>`);const g=h("div","segbar");
       for(const[v,t]of opts){const b=h("button",v===cur?"sel":"",t);b.onclick=()=>{fn(v);paintSettings()};g.appendChild(b)}r.appendChild(g);return r};
+    c.appendChild(seg("Tema","Oscuro para el escenario; claro para trabajar de día o al sol. Automático sigue al iPad.",[["auto","Automático"],["dark","Oscuro"],["light","Claro"]],P.theme,v=>{P.theme=v;savePrefs();notifyAll()}));
     c.appendChild(seg("Faders a la vista","Cuántas tiras caben en pantalla a la vez.",[[0,"Auto"],[8,"8"],[12,"12"],[16,"16"]],P.cols,v=>{P.cols=v;savePrefs()}));
     c.appendChild(h("h3","sec","Qué se ve en cada tira"));
     for(const[k,t,sub]of[["proc","Mini ecualizador y procesado","El dibujo del EQ y las marcas P · C · EQ."],["pan","Panorama","La barrita de izquierda / derecha."],
@@ -720,7 +729,7 @@ function paintSettings(){
     c.appendChild(h("h3","sec","Color de acento"));
     const ac=h("div","accents");for(const[k,a]of Object.entries(ACCENTS)){const b=h("button",k===P.accent?"sel":"",`<i style="background:${a[1]}"></i>${a[0]}`);
       b.onclick=()=>{P.accent=k;savePrefs();paintSettings()};ac.appendChild(b)}c.appendChild(ac);
-    c.appendChild(act("Volver a lo de fábrica",()=>{const m=P.musician;P=Object.assign({},PDEF,{musician:m});savePrefs();renderDesk();paintSettings()},"btn"));
+    c.appendChild(act("Volver a lo de fábrica",()=>{const m=P.musician;P=Object.assign({},PDEF,{musician:m});savePrefs();renderDesk();notifyAll();paintSettings()},"btn"));
   }else if(setSec==="musico"){
     c.appendChild(h("h3","","Modo músico"));
     c.appendChild(h("p","sub","Convierte este iPad en el control de monitor de un músico: solo ve su mezcla y solo puede subir y bajar lo que le llega. No puede tocar la mezcla principal, el procesado ni la conexión."));
