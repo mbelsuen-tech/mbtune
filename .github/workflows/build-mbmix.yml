@@ -11,6 +11,19 @@ on:
       - ".github/workflows/build-mbmix.yml"
 
 jobs:
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publicar la web instalable en GitHub Pages (rama gh-pages)
+        run: |
+          mkdir site && cp -R mbmix/web/. site/ && touch site/.nojekyll
+          cd site && git init -q -b gh-pages && git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Publicar MBMix ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
+
   windows:
     runs-on: windows-latest
     steps:
