@@ -782,7 +782,7 @@ function paintSettings(){
 
 /* ================================================================ conexión con el servidor MBMix */
 /* En la app del iPad (o abriendo la página con ?local) el motor corre aquí mismo; si no, se usa el servidor del ordenador */
-const STANDALONE=!!window.MBEngine&&(MBEngine.native||location.protocol==="file:"||new URLSearchParams(location.search).has("local"));
+const STANDALONE=!!window.MBEngine&&(MBEngine.native||window.MBMIX_LOCAL||location.protocol==="file:"||new URLSearchParams(location.search).has("local"));
 function send(o){if(STANDALONE)MBEngine.handle(o);else if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
 function connectWs(){
   if(STANDALONE){document.body.classList.add("standalone");MBEngine.start(handleMsg);return}
