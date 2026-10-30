@@ -228,8 +228,8 @@ input{font:inherit;color:var(--text);user-select:text;-webkit-user-select:text}
 .hslider b{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--red-deep),var(--red));opacity:.85}
 .hslider::after{content:"";position:absolute;left:75%;top:4px;bottom:4px;width:1px;background:rgba(255,255,255,.35)}
 .send .val{font-size:14px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
-.send .on{height:40px;border-radius:9px;background:var(--btn);border:1px solid var(--edge);font-size:12px;font-weight:700;color:var(--muted)}
-.send .on.on{background:var(--btn-red);color:var(--strong)}
+.send .onbtn{height:40px;border-radius:9px;background:var(--btn);border:1px solid var(--edge);font-size:12px;font-weight:700;color:var(--muted)}
+.send .onbtn.on{background:var(--btn-red);color:var(--strong)}
 .send.off .hslider b{filter:saturate(0);opacity:.35}
 
 .colors{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;max-width:560px}
@@ -282,7 +282,7 @@ body.nometers .meter,body.nometers .grbar,body.nometers .bigmeter{visibility:hid
 .switch.on i{background:var(--warn)} .switch.on i::after{transform:translateX(20px);background:#fff}
 .switch b{display:block;font-size:16px} .switch small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
 .send.noon{grid-template-columns:120px minmax(0,1fr) 56px}
-.send.noon .on{display:none}
+.send.noon .onbtn{display:none}
 @media (max-width:700px){.models.three{grid-template-columns:1fr}}
 
 /* ===== v3: características de Zeta Control ===== */
@@ -302,7 +302,7 @@ body.nometers .meter,body.nometers .grbar,body.nometers .bigmeter{visibility:hid
 .tbtn.lock.on{background:var(--btn-red);border-color:var(--red)}
 /* bloqueo */
 body.locked .fader,body.locked .mute,body.locked .solo,body.locked .pan,body.locked .sendon,body.locked .kn,body.locked .graph,body.locked .hslider,
-body.locked .send .on,body.locked .bigtoggle,body.locked .toggle,body.locked .pane .chips button,body.locked .mgroups button,body.locked .pane input,
+body.locked .send .onbtn,body.locked .bigtoggle,body.locked .toggle,body.locked .pane .chips button,body.locked .mgroups button,body.locked .pane input,
 body.locked .colors button,body.locked #grpSave{pointer-events:none;opacity:.55}
 body.locked .desk{box-shadow:inset 0 0 0 2px rgba(var(--accent-rgb,227,16,28),.35);border-radius:16px}
 /* tiras extra */

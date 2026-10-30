@@ -515,14 +515,14 @@ function paneSends(s,pane){
   const grid=h("div","sends");
   for(const{n}of(s.mtxSends?mtxTargets():MODEL.targets)){
     const bs=busStrip(n),lk=`${s.id}.send.${n}.lvl`,ok=SPEC[`${s.id}.send.${n}.on`]?`${s.id}.send.${n}.on`:null;
-    const row=h("div","send"+(ok?"":" noon"),`<div class="who"><small>${esc(bs.label)}</small><span></span></div><div class="hslider"><b></b></div><div class="val"></div><button class="on">ON</button>`);
+    const row=h("div","send"+(ok?"":" noon"),`<div class="who"><small>${esc(bs.label)}</small><span></span></div><div class="hslider"><b></b></div><div class="val"></div><button class="onbtn">ON</button>`);
     watch("pane",[lk,ok,bs.id+".name",bs.id+".color"].filter(Boolean),()=>{
       row.querySelector(".who").style.setProperty("--c",colorOf(bs));row.querySelector(".who span").textContent=S[bs.id+".name"]||bs.label;
       row.querySelector(".hslider b").style.width=(norm(lk)*100)+"%";row.querySelector(".val").textContent=F.db(S[lk]);
-      const on=ok?!!+S[ok]:true;row.querySelector(".on").classList.toggle("on",on);row.classList.toggle("off",!on)});
+      const on=ok?!!+S[ok]:true;{const ob=row.querySelector(".onbtn");ob.classList.toggle("on",on);ob.textContent=on?"ON":"OFF"}row.classList.toggle("off",!on)});
     const sl=row.querySelector(".hslider");
     dragH(sl,()=>norm(lk),v=>setN(lk,v),{start:()=>hold(lk),end:()=>release(lk),dbl:()=>setP(lk,0),travel:()=>sl.clientWidth});
-    row.querySelector(".on").onclick=()=>ok&&tog(ok);
+    row.querySelector(".onbtn").onclick=()=>ok&&tog(ok);
     grid.appendChild(row);
   }
   pane.appendChild(grid);
