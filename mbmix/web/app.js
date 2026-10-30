@@ -18,7 +18,7 @@ function store(k,v){try{if(window.MBNativeStore){MBNativeStore["ui."+k]=String(v
   localStorage.setItem("mbmix."+k,v)}catch(e){}}
 
 /* ---- personalización (se guarda en cada iPad) ---- */
-const PDEF={theme:"dark",cols:0,proc:1,pan:1,solo:1,scale:1,meter:1,big:0,dbl:1,fine:0,accent:"red",musician:0};
+const PDEF={theme:"dark",zoom:1,cols:0,proc:1,pan:1,solo:1,scale:1,meter:1,big:0,dbl:1,fine:0,accent:"red",musician:0};
 let P=Object.assign({},PDEF,(()=>{try{return JSON.parse(load("prefs","{}"))}catch(e){return{}}})());
 const ACCENTS={red:["Rojo MB","#e3101c","#ef2430","#b80c16","#7a0710","227,16,28"],blue:["Azul","#2f7bf2","#4b8ff7","#1a5fd0","#0f3a80","47,123,242"],
   green:["Verde","#22b357","#34d27b","#16863f","#0c4a23","34,179,87"],amber:["Ámbar","#f29a0f","#ffb238","#c97800","#6a3f00","242,154,15"],
@@ -40,7 +40,10 @@ function applyPrefs(){
   r.setProperty("--red",a[1]);r.setProperty("--btn-red",`linear-gradient(180deg,${a[2]} 0%,${a[3]} 100%)`);r.setProperty("--red-deep",a[4]);
   r.setProperty("--glow",`0 0 14px rgba(${a[5]},.55)`);r.setProperty("--accent-rgb",a[5]);
   const st=document.getElementById("strips");if(st)st.style.gridAutoColumns=P.cols?`calc((100% - ${(P.cols-1)*4}px) / ${P.cols})`:"";
+  const z=+P.zoom||1,bs=document.body.style;b.toggle("zoomed",z!==1);document.documentElement.style.setProperty("--zoom",z);
+  bs.transform=z!==1?`scale(${z})`:"";bs.width=z!==1?`calc(100% / ${z})`:"";bs.height=z!==1?`calc(100% / ${z})`:"";
 }
+const ZOOM=()=>+P.zoom||1;
 function musicianLayers(){
   if(!P.musician)return LAYERS;
   return LAYERS.filter(L=>!L.add&&L.id!=="grp").map(L=>({...L,ids:()=>L.ids().filter(id=>BY[id]?.sends)})).filter(L=>L.ids().length);
@@ -183,7 +186,7 @@ function dragAxis(el,get,set,{start,end,dbl,travel},axis){
     e.preventDefault();
   });
   el.addEventListener("pointermove",e=>{if(e.pointerId!==id)return;
-    const fine=e.shiftKey||e.altKey?.15:1;set(clamp(v0+(axis(e)-p0)/Math.max(40,travel())*fine))});
+    const fine=e.shiftKey||e.altKey?.15:1;set(clamp(v0+(axis(e)-p0)/ZOOM()/Math.max(40,travel())*fine))});
   const up=e=>{if(e.pointerId!==id)return;id=null;end&&end()};
   el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);
 }
@@ -313,9 +316,9 @@ function knob(scope,{label,key,fmt,def}){
 function polar(cx,cy,r,deg){const a=(deg-90)*Math.PI/180;return[cx+r*Math.cos(a),cy+r*Math.sin(a)]}
 function arc(cx,cy,r,a0,a1){const[x0,y0]=polar(cx,cy,r,a0),[x1,y1]=polar(cx,cy,r,a1);
   return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`}
-function fitCanvas(cv){const r=cv.getBoundingClientRect();if(!r.width||!r.height)return null;const d=devicePixelRatio||1;
-  const w=Math.round(r.width*d),hh=Math.round(r.height*d);if(cv.width!==w||cv.height!==hh){cv.width=w;cv.height=hh}
-  const ctx=cv.getContext("2d");ctx.setTransform(d,0,0,d,0,0);return[ctx,r.width,r.height]}
+function fitCanvas(cv){const W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return null;const d=(devicePixelRatio||1)*ZOOM();
+  const w=Math.round(W*d),hh=Math.round(H*d);if(cv.width!==w||cv.height!==hh){cv.width=w;cv.height=hh}
+  const ctx=cv.getContext("2d");ctx.setTransform(d,0,0,d,0,0);return[ctx,W,H]}
 const meterEl=(cls="")=>h("div","meter "+cls,"<b></b><i></i>");
 const font=()=>getComputedStyle(document.body).fontFamily;
 
@@ -477,9 +480,9 @@ function eqTouch(g,s){
   g.addEventListener("pointerdown",e=>{
     try{g.setPointerCapture(e.pointerId)}catch(_){}
     pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    const r=g.getBoundingClientRect();
+    const r=g.getBoundingClientRect(),zz=ZOOM();
     if(pts.size===1){
-      let best=s.eq[0],bd=1e9;for(const b of s.eq){const[x,y]=eqXY(s,b,r.width,r.height);const d=Math.hypot(x-(e.clientX-r.left),(y-(e.clientY-r.top))*.6);if(d<bd){bd=d;best=b}}
+      let best=s.eq[0],bd=1e9;for(const b of s.eq){const[x,y]=eqXY(s,b,g.clientWidth,g.clientHeight);const d=Math.hypot(x-(e.clientX-r.left)/zz,(y-(e.clientY-r.top)/zz)*.6);if(d<bd){bd=d;best=b}}
       if(best!==eqBand){eqBand=best;renderPane(s);return}
       band=best;const p=`${s.id}.eq.${band}.`;start={x:e.clientX,y:e.clientY,f:norm(p+"f"),g:+S[p+"g"]};hold(p+"f");hold(p+"g");
     }else if(pts.size===2&&band){const a=[...pts.values()];pinch={d:Math.abs(a[0].x-a[1].x)+1,q:norm(`${s.id}.eq.${band}.q`)};start=null}
@@ -489,7 +492,7 @@ function eqTouch(g,s){
     const r=g.getBoundingClientRect(),p=`${s.id}.eq.${band}.`;
     if(pinch&&pts.size>=2){const a=[...pts.values()],d=Math.abs(a[0].x-a[1].x)+1;setN(p+"q",pinch.q-Math.log(d/pinch.d)*.35);return}
     if(!start)return;
-    setN(p+"f",start.f+(e.clientX-start.x)/r.width);
+    setN(p+"f",start.f+(e.clientX-start.x)/r.width);/* r ya está escalado igual que clientX */
     if(hasGain(bandType(s,band)))setP(p+"g",start.g-(e.clientY-start.y)/(r.height/2)*18);
   });
   const up=e=>{pts.delete(e.pointerId);if(!pts.size&&band){const p=`${s.id}.eq.${band}.`;release(p+"f");release(p+"g");band=null;start=null;pinch=null}};
@@ -698,6 +701,17 @@ function renderSceneRow(){
   const g=h("button","chip ghost","＋ Guardar / gestionar");g.onclick=()=>{renderScenes();openSheet("#sceneSheet")};r.appendChild(g);
 }
 
+/* ================================================================ pantalla completa (versiones web) */
+const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+function toggleFull(){
+  const el=document.documentElement;
+  try{if(fsEl()){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}
+    const r=(el.requestFullscreen||el.webkitRequestFullscreen).call(el);
+    if(r&&r.catch)r.catch(()=>fullHelp())}catch(e){fullHelp()}
+}
+function fullHelp(){toast("Aquí no se puede poner a pantalla completa. Usa «Tamaño» en Ajustes → Personalizar, o la app MBMix del iPad, que siempre va a pantalla completa.")}
+if(window.MBEngine&&MBEngine.native)$("#fsBtn").remove();else $("#fsBtn").onclick=toggleFull;
+
 /* ================================================================ bloqueo */
 $("#lockBtn").onclick=()=>{locked=!locked;document.body.classList.toggle("locked",locked);$("#lockBtn").classList.toggle("on",locked);
   $("#lockBtn small").textContent=locked?"Bloqueado":"Bloquear";toast(locked?"Controles bloqueados: toca el candado para desbloquear":"Controles desbloqueados")};
@@ -717,6 +731,7 @@ function paintSettings(){
     c.appendChild(h("h3","","Personalizar"));c.appendChild(h("p","sub","Elige cómo se ve y cómo responde la mesa en este iPad. Cada iPad puede tenerlo a su gusto."));
     const seg=(label,sub,opts,cur,fn)=>{const r=h("div","setrow",`<div><b>${label}</b><small>${sub}</small></div>`);const g=h("div","segbar");
       for(const[v,t]of opts){const b=h("button",v===cur?"sel":"",t);b.onclick=()=>{fn(v);paintSettings()};g.appendChild(b)}r.appendChild(g);return r};
+    c.appendChild(seg("Tamaño","Hazlo más grande si lo ves pequeño en el iPad.",[[1,"100 %"],[1.15,"115 %"],[1.3,"130 %"],[1.5,"150 %"]],+P.zoom||1,v=>{P.zoom=v;savePrefs();setTimeout(notifyAll,50)}));
     c.appendChild(seg("Tema","Oscuro para el escenario; claro para trabajar de día o al sol. Automático sigue al iPad.",[["auto","Automático"],["dark","Oscuro"],["light","Claro"]],P.theme,v=>{P.theme=v;savePrefs();notifyAll()}));
     c.appendChild(seg("Faders a la vista","Cuántas tiras caben en pantalla a la vez.",[[0,"Auto"],[8,"8"],[12,"12"],[16,"16"]],P.cols,v=>{P.cols=v;savePrefs()}));
     c.appendChild(h("h3","sec","Qué se ve en cada tira"));

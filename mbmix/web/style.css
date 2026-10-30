@@ -423,3 +423,4 @@ body.musician .strip .ms .mute{display:none}
 :root[data-theme="light"] .proc .tags i.on{background:var(--red)}
 /* app del iPad (sin ordenador) */
 body.standalone #lanHint,body.standalone .netmap .pc{display:none}
+body.zoomed{transform-origin:0 0}
