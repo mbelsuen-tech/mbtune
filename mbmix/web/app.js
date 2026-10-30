@@ -338,6 +338,7 @@ function paneInput(s,pane){
   const col=h("div","incol");
   const ks=h("div","knobs left");
   if(SPEC[k+"gain"])ks.appendChild(knob("pane",{label:"Ganancia",key:k+"gain",fmt:F.dbu}));
+  if(SPEC[k+"trim"])ks.appendChild(knob("pane",{label:"Trim",key:k+"trim",fmt:F.dbu,def:0}));
   if(SPEC[k+"lcf"])ks.appendChild(knob("pane",{label:"Quitar graves por debajo de",key:k+"lcf",fmt:F.hz}));
   const row=h("div","btnrow");
   if(SPEC[k+"p48"]){const b=bigToggle("pane","Phantom 48V",k+"p48","p48");
