@@ -46,7 +46,8 @@ function applyPrefs(){
 const ZOOM=()=>+P.zoom||1;
 function musicianLayers(){
   if(!P.musician)return LAYERS;
-  return LAYERS.filter(L=>!L.add&&L.id!=="grp").map(L=>({...L,ids:()=>L.ids().filter(id=>BY[id]?.sends)})).filter(L=>L.ids().length);
+  const ok=id=>BY[id]?.sends||(groupOf(id)&&groupOf(id).m.some(x=>BY[x]?.sends));
+  return LAYERS.filter(L=>!L.add).map(L=>({...L,ids:()=>L.ids().filter(ok)})).filter(L=>L.ids().length);
 }
 
 /* ---- observadores: cada control se redibuja cuando cambia su parámetro ---- */
@@ -620,38 +621,64 @@ function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show"
 const GROUP_COLORS=["#e3101c","#ff8a1f","#f2c230","#2fbf5b","#1fc2d4","#2f7bf2","#b06ad8","#ff5fb0","#8b8b93"];
 const groupOf=id=>typeof id==="string"&&id.startsWith("g:")?layout.groups.find(g=>"g:"+g.id===id):null;
 function sendLayout(){send({t:"layout",v:{views:layout.views,groups:layout.groups}})}
-const mixKey=()=>sendBus?"b"+sendBus:"main";
+/* nivel de un grupo en una mezcla (main o bus n): mueve sus canales manteniendo la distancia entre ellos */
+const gKey=bus=>bus?"b"+bus:"main";
+const grpMembers=g=>g.m.map(id=>BY[id]).filter(Boolean);
+const grpKeys=(g,bus)=>grpMembers(g).filter(m=>!bus||m.sends).map(m=>faderKey(m,bus));
+const grpLevel=(g,bus)=>{const v=g.niv[gKey(bus)];return v==null?0:v};
+function grpStart(g,bus){
+  const gd=grpLevel(g,bus),prev=(g.off||{})[gKey(bus)]||{},off={};
+  for(const k of grpKeys(g,bus)){const d=+S[k];off[k]=gd>-90?(d<=-89?null:d-gd):(prev[k]!==undefined?prev[k]:(d<=-89?null:d));hold(k)}
+  g.off=g.off||{};g.off[gKey(bus)]=off;return off;
+}
+function grpSet(g,bus,gd,off){g.niv[gKey(bus)]=gd;for(const k in off){const o=off[k];setP(k,o===null||gd<=-90?-144:clamp(o+gd,-144,10))}}
+function grpEnd(g,bus){grpKeys(g,bus).forEach(release);sendLayout()}
+
 function makeGroupStrip(scope,g){
   const el=document.createElement("div");el.className="strip group";el.style.setProperty("--c",g.c);el.dataset.id="g:"+g.id;
-  el.innerHTML=`<button class="scribble" title="Editar grupo"><span class="num">Grupo · ${g.m.length}</span><span class="nm">${esc(g.n)}</span></button>
+  el.innerHTML=`<button class="scribble" title="Envíos y ajustes del grupo"><span class="num">Grupo · ${g.m.length}</span><span class="nm">${esc(g.n)}</span></button>
     <div class="members"></div>
     <div class="ms"><button class="mute" title="Silenciar todo el grupo">${MUTE_ICON}<small>MUTE</small></button></div>
     <div class="fader"><div class="scale">${SCALE.map(d=>`<span class="${d===0?"zero":""}" style="top:${capPos(FD.pos(d))}">${d===-90?"-∞":d>0?"+"+d:d}</span>`).join("")}</div>
       <div class="track"><div class="fill"></div></div><div class="gap"></div><div class="fader-cap"></div></div>
     <div class="db"></div>`;
   const q=c=>el.querySelector(c);
-  const members=()=>g.m.map(id=>BY[id]).filter(Boolean);
-  const keys=()=>members().filter(m=>!sendBus||m.sends).map(m=>faderKey(m,sendBus));
-  const level=()=>{const v=g.niv[mixKey()];return v==null?0:v};
-  watch(scope,[...members().map(m=>m.id+".mute"),...members().map(m=>m.id+".name")],()=>{
-    const ms=members();q(".members").textContent=ms.map(nameOf).join(", ")||"Sin canales";
+  if(sendBus){el.classList.add("sendmode");el.style.setProperty("--bus",colorOf(busStrip(sendBus)))}
+  watch(scope,[...grpMembers(g).map(m=>m.id+".mute"),...grpMembers(g).map(m=>m.id+".name")],()=>{
+    const ms=grpMembers(g);q(".members").textContent=ms.map(nameOf).join(", ")||"Sin canales";
     const all=ms.length&&ms.every(m=>+S[m.id+".mute"]);q(".mute").classList.toggle("on",!!all);el.classList.toggle("muted",!!all)});
-  const paint=()=>{const v=FD.pos(level());q(".fader-cap").style.top=capPos(v);q(".fill").style.height=`calc((100% - 44px) * ${v.toFixed(4)})`;q(".db").textContent=F.db(level())};
+  const paint=()=>{const lv=grpLevel(g,sendBus),v=FD.pos(lv);q(".fader-cap").style.top=capPos(v);q(".fill").style.height=`calc((100% - 44px) * ${v.toFixed(4)})`;q(".db").textContent=F.db(lv)};
   paint();
   let off={};
   const fader=q(".fader");
-  dragV(fader,()=>FD.pos(level()),v=>{
-    const gd=FD.db(v);g.niv[mixKey()]=gd;
-    for(const k of keys()){const o=off[k];if(o===undefined)continue;setP(k,o===null||gd<=-90?-144:clamp(o+gd,-144,10))}
-    paint();
-  },{start:()=>{const gd=level(),prev=(g.off||{})[mixKey()]||{};off={};
-      for(const k of keys()){const d=+S[k];off[k]=gd>-90?(d<=-89?null:d-gd):(prev[k]!==undefined?prev[k]:(d<=-89?null:d));hold(k)}
-      g.off=g.off||{};g.off[mixKey()]=off},
-    end:()=>{keys().forEach(release);sendLayout()},dbl:null,travel:()=>fader.clientHeight-44});
-  q(".mute").onclick=()=>{if(locked)return;const ms=members(),all=ms.length&&ms.every(m=>+S[m.id+".mute"]);ms.forEach(m=>setP(m.id+".mute",all?0:1))};
-  q(".scribble").onclick=()=>openGroupEditor(g.id);
+  dragV(fader,()=>FD.pos(grpLevel(g,sendBus)),v=>{grpSet(g,sendBus,FD.db(v),off);paint()},
+    {start:()=>{off=grpStart(g,sendBus)},end:()=>grpEnd(g,sendBus),dbl:null,travel:()=>fader.clientHeight-44});
+  q(".mute").onclick=()=>{if(locked)return;const ms=grpMembers(g),all=ms.length&&ms.every(m=>+S[m.id+".mute"]);ms.forEach(m=>setP(m.id+".mute",all?0:1))};
+  q(".scribble").onclick=()=>openGroupSends(g.id);
   return el;
 }
+
+/* envíos del grupo a cada monitor */
+function openGroupSends(id){
+  const g=layout.groups.find(x=>x.id===id);if(!g)return;
+  $("#gsTitle").textContent=g.n;$("#gsTitle").style.setProperty("--c",g.c);
+  $("#gsMembers").textContent=grpMembers(g).map(nameOf).join(", ");
+  $("#gsEdit").style.display=P.musician?"none":"";$("#gsEdit").onclick=()=>{closeSheets();openGroupEditor(g.id)};
+  const box=$("#gsList");box.innerHTML="";
+  const rows=[[0,"Principal","Mezcla del público","var(--red)"],...MODEL.targets.map(t=>{const s=BY[t.id];return[t.n,nameOf(s),s.label,colorOf(s)]})]
+    .filter(r=>!P.musician||r[0]===P.musician);
+  for(const[bus,name,sub,c]of rows){
+    if(bus&&!grpKeys(g,bus).length)continue;
+    const row=h("div","send noon",`<div class="who"><small>${esc(sub)}</small><span>${esc(name)}</span></div><div class="hslider"><b></b></div><div class="val"></div>`);
+    row.querySelector(".who").style.setProperty("--c",c);
+    const sl=row.querySelector(".hslider"),paint=()=>{const lv=grpLevel(g,bus);sl.querySelector("b").style.width=(FD.pos(lv)*100)+"%";row.querySelector(".val").textContent=F.db(lv)};
+    paint();let off={};
+    dragH(sl,()=>FD.pos(grpLevel(g,bus)),v=>{grpSet(g,bus,FD.db(v),off);paint()},{start:()=>{off=grpStart(g,bus)},end:()=>{grpEnd(g,bus);if(bus===sendBus)renderDesk()},travel:()=>sl.clientWidth});
+    box.appendChild(row);
+  }
+  openSheet("#groupSendsSheet");
+}
+
 let gEd=null;
 function openGroupEditor(id){
   const g=layout.groups.find(x=>x.id===id);

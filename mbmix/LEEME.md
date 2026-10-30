@@ -55,7 +55,7 @@ y en Safari: Compartir → «Añadir a pantalla de inicio» para usarla a pantal
   Cada pantalla explica en una línea para qué sirve.
 - **Mezclas guardadas**: guarda y recupera toda la mezcla; fila rápida para cargarlas con doble toque.
 - **Grupos propios**: un fader que mueve varios canales a la vez manteniendo la mezcla entre ellos
-  (en la mezcla principal y en cada monitor), con mute de grupo.
+  (en la mezcla principal y en cada monitor), con mute de grupo y pantalla de envíos del grupo a cada monitor.
 - **Canales enlazados** (1–2, 3–4…): fader, mute, envíos y procesado a la vez; ganancia y +48V separados.
 - **Fila de monitores** para cambiar de mezcla de un toque, **envío a mains** por canal
   y **+48V con confirmación**.

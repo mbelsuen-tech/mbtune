@@ -424,3 +424,7 @@ body.musician .strip .ms .mute{display:none}
 /* app del iPad (sin ordenador) */
 body.standalone #lanHint,body.standalone .netmap .pc{display:none}
 body.zoomed{transform-origin:0 0}
+.gtitle{display:flex;align-items:center;gap:10px}
+.gtitle::before{content:"";width:12px;height:28px;border-radius:4px;background:var(--c,var(--red))}
+#groupSendsSheet .sends{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
+#groupSendsSheet .card{width:min(860px,96vw)!important}
