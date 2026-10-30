@@ -38,6 +38,12 @@ y en Safari: Compartir → «Añadir a pantalla de inicio» para usarla a pantal
   y **+48V con confirmación**.
 - **Bloquear**: congela todos los controles durante el bolo.
 - **Panel lateral**: el canal se abre a la derecha sin perder de vista los faders (o a pantalla completa).
+- **Personalizar** (cada iPad a su gusto, como en Mixing Station): cuántos faders se ven (auto/8/12/16),
+  qué se ve en cada tira (mini EQ, panorama, SOLO, escala, vúmetro), nombres grandes,
+  doble toque a 0 dB, modo fino y color de acento.
+- **Mis capas**: varias capas con nombre propio («Batería», «Voces», «Mi monitor»…), con canales y grupos.
+- **Modo músico**: el iPad solo controla una mezcla de monitor (sus envíos), sin tocar la mezcla
+  principal, el procesado ni la conexión.
 - **Ajustes**: Mi vista, Grupos, Canales enlazados, Pantalla (mantener encendida, pantalla completa),
   Ayuda y Datos. Vista, grupos y enlaces se comparten entre todos los iPads.
 - **Conexión**: eliges WING Rack, WING o XR18; búsqueda automática en la red o IP manual.

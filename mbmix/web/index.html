@@ -102,10 +102,11 @@
 <section class="sheet" id="layerSheet">
   <div class="card" style="width:min(820px,96vw)">
     <button class="close" data-close>✕</button>
-    <h2>Mi vista</h2>
-    <p class="sub">Toca los canales que quieres tener juntos, en el orden en que quieres verlos. Vuelve a tocar para quitarlos.</p>
+    <h2 id="layerTitle">Nueva capa</h2>
+    <p class="sub">Ponle un nombre y toca los canales que quieres tener juntos, en el orden en que quieres verlos. Vuelve a tocar para quitarlos.</p>
+    <input class="field" id="layerName" maxlength="16" placeholder="Nombre (ej.: Batería, Voces, Mi monitor)" style="max-width:420px;margin-bottom:6px">
     <div id="layerPick"></div>
-    <div class="row" style="margin-top:16px"><button class="btn" id="layerClear">Quitar todos</button><span style="flex:1"></span><button class="btn red" id="layerDone">Hecho</button></div>
+    <div class="row" style="margin-top:16px"><button class="btn danger" id="layerDel">Borrar capa</button><button class="btn" id="layerClear">Quitar todos</button><span style="flex:1"></span><button class="btn red" id="layerDone">Hecho</button></div>
   </div>
 </section>
 

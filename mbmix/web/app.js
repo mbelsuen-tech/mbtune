@@ -7,7 +7,7 @@ const range=(a,b)=>Array.from({length:b-a+1},(_,i)=>a+i);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ================================================================ estado */
-let MODEL={layers:[],targets:[],colors:[],mains:[]},STRIPS=[],BY={},SPEC={},S={},M={},status={},scenes=[],layout={custom:[],groups:[],links:[]};
+let MODEL={layers:[],targets:[],colors:[],mains:[]},STRIPS=[],BY={},SPEC={},S={},M={},status={},scenes=[],layout={custom:[],groups:[],links:[],views:[]};
 let locked=false;
 let ws=null,wsTries=0;
 let layer=load("layer","in1"),sendBus=+load("sendBus",0),detailId=null,detailTab=null,eqBand=null;
@@ -15,6 +15,27 @@ const active=new Set();          // parámetros que se están moviendo con el de
 
 function load(k,d){try{const v=localStorage.getItem("mbmix."+k);return v==null?d:v}catch(e){return d}}
 function store(k,v){try{localStorage.setItem("mbmix."+k,v)}catch(e){}}
+
+/* ---- personalización (se guarda en cada iPad) ---- */
+const PDEF={cols:0,proc:1,pan:1,solo:1,scale:1,meter:1,big:0,dbl:1,fine:0,accent:"red",musician:0};
+let P=Object.assign({},PDEF,(()=>{try{return JSON.parse(load("prefs","{}"))}catch(e){return{}}})());
+const ACCENTS={red:["Rojo MB","#e3101c","#ef2430","#b80c16","#7a0710","227,16,28"],blue:["Azul","#2f7bf2","#4b8ff7","#1a5fd0","#0f3a80","47,123,242"],
+  green:["Verde","#22b357","#34d27b","#16863f","#0c4a23","34,179,87"],amber:["Ámbar","#f29a0f","#ffb238","#c97800","#6a3f00","242,154,15"],
+  purple:["Morado","#9b4de0","#b06ad8","#7330b0","#3f1a63","155,77,224"],cyan:["Cian","#14b8c8","#38d0de","#0c8a96","#064a50","20,184,200"]};
+const ACC=()=>(ACCENTS[P.accent]||ACCENTS.red)[1],ACCRGB=()=>(ACCENTS[P.accent]||ACCENTS.red)[5];
+function savePrefs(){store("prefs",JSON.stringify(P));applyPrefs()}
+function applyPrefs(){
+  const b=document.body.classList;for(const k of["proc","pan","solo","scale","meter"])b.toggle("hide-"+k,!P[k]);
+  b.toggle("bignames",!!P.big);b.toggle("musician",!!P.musician);
+  const a=ACCENTS[P.accent]||ACCENTS.red,r=document.documentElement.style;
+  r.setProperty("--red",a[1]);r.setProperty("--btn-red",`linear-gradient(180deg,${a[2]} 0%,${a[3]} 100%)`);r.setProperty("--red-deep",a[4]);
+  r.setProperty("--glow",`0 0 14px rgba(${a[5]},.55)`);r.setProperty("--accent-rgb",a[5]);
+  const st=document.getElementById("strips");if(st)st.style.gridAutoColumns=P.cols?`calc((100% - ${(P.cols-1)*4}px) / ${P.cols})`:"";
+}
+function musicianLayers(){
+  if(!P.musician)return LAYERS;
+  return LAYERS.filter(L=>!L.add&&L.id!=="grp").map(L=>({...L,ids:()=>L.ids().filter(id=>BY[id]?.sends)})).filter(L=>L.ids().length);
+}
 
 /* ---- observadores: cada control se redibuja cuando cambia su parámetro ---- */
 const W=new Map(),SCOPES=new Map();let METERS=[];
@@ -63,7 +84,8 @@ function bandLetter(s,b){const i=s.eq.indexOf(b),n=s.eq.length;return i===0?"G":
 let LAYERS=[];
 function buildLayers(){LAYERS=[...MODEL.layers.map(l=>({id:l.id,name:l.name,ids:()=>l.ids})),
   ...(layout.groups.length?[{id:"grp",name:"Grupos",ids:()=>layout.groups.map(g=>"g:"+g.id)}]:[]),
-  {id:"custom",name:"Mi vista",ids:()=>(layout.custom||[]).filter(id=>BY[id]||groupOf(id))}];
+  ...layout.views.map(v=>({id:"v:"+v.id,name:v.name,view:v,ids:()=>v.ids.filter(id=>BY[id]||groupOf(id))})),
+  {id:"vnew",name:"＋ Capa",add:true,ids:()=>[]}];
   if(!LAYERS.some(l=>l.id===layer))layer=LAYERS[0].id}
 
 function stripKeys(s,bus){
@@ -114,12 +136,12 @@ function makeStrip(scope,s,{bus=0,detail=false}={}){
   if(lk&&!detail)el.classList.add("linked",cn===lodd?"lk-l":"lk-r");
 
   const fader=q(".fader");
-  dragV(fader,()=>norm(fk),v=>setN(fk,v),{start:()=>hold(fk),end:()=>release(fk),dbl:()=>setP(fk,0),travel:()=>fader.clientHeight-44});
+  dragV(fader,()=>norm(fk),v=>setN(fk,v),{start:()=>hold(fk),end:()=>release(fk),dbl:()=>P.dbl&&setP(fk,0),travel:()=>(fader.clientHeight-44)*(P.fine?2.5:1)});
   q(".mute").onclick=()=>tog(k+"mute");
   q(".solo").onclick=()=>s.solo&&tog(k+"solo");
   q(".sendon").onclick=()=>sendOn&&tog(sendOn);
   if(s.pan){const pan=q(".pan");dragH(pan,()=>norm(k+"pan"),v=>setN(k+"pan",v),{start:()=>hold(k+"pan"),end:()=>release(k+"pan"),dbl:()=>setP(k+"pan",0),travel:()=>pan.clientWidth*1.5})}
-  if(!detail){q(".scribble").onclick=()=>openDetail(s.id);q(".proc").onclick=e=>openDetail(s.id,e.target.dataset?.tab||(s.eq.length?"eq":"dyn"))}
+  if(!detail){q(".scribble").onclick=()=>P.musician?toast("Modo músico: solo puedes mover tu mezcla"):openDetail(s.id);q(".proc").onclick=e=>openDetail(s.id,e.target.dataset?.tab||(s.eq.length?"eq":"dyn"))}
   addMeter(scope,s.id,0,q(".meter"));
   if(!s.solo)q(".solo").classList.add("none");
   return el;
@@ -137,7 +159,7 @@ function drawProc(s,cv,tags){
     const on=+S[k+"eq.on"],pts=eqCurve(s,40);
     ctx.strokeStyle="#222";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
     ctx.beginPath();pts.forEach(([x,d],i)=>{const X_=x*w,Y=h/2-clamp(d,-18,18)/18*(h/2-3);i?ctx.lineTo(X_,Y):ctx.moveTo(X_,Y)});
-    const c=colorOf(s);ctx.strokeStyle=on?(c===NOCOLOR?"#e3101c":c):"#3a3a40";ctx.lineWidth=1.6;ctx.stroke()});
+    const c=colorOf(s);ctx.strokeStyle=on?(c===NOCOLOR?ACC():c):"#3a3a40";ctx.lineWidth=1.6;ctx.stroke()});
 }
 
 /* ================================================================ arrastre (relativo, como en la app original) */
@@ -172,27 +194,29 @@ function meterLoop(){
       m.b.style.clipPath=`inset(0 0 ${((1-m.v)*100).toFixed(1)}% 0)`;if(m.i)m.i.style.opacity=0}
   }
   if(liveGraph)liveGraph();
-  requestAnimationFrame(meterLoop);
+  applyPrefs();
+requestAnimationFrame(meterLoop);
 }
 
 /* ================================================================ mesa */
 function renderLayers(){
   const nav=$("#layers");nav.innerHTML="";
-  for(const L of LAYERS){const b=document.createElement("button");b.textContent=L.name;b.classList.toggle("sel",L.id===layer);
-    b.onclick=()=>{if(L.id==="custom"&&(layer==="custom"||!(layout.custom||[]).length)){openLayerEditor();return}layer=L.id;store("layer",layer);renderLayers();renderDesk()};
+  for(const L of musicianLayers()){const b=document.createElement("button");b.textContent=L.name;b.classList.toggle("sel",L.id===layer);
+    if(L.view)b.classList.add("view");if(L.add)b.classList.add("addlayer");
+    b.onclick=()=>{if(L.add){openLayerEditor(null);return}if(L.view&&layer===L.id){openLayerEditor(L.view.id);return}layer=L.id;store("layer",layer);renderLayers();renderDesk()};
     nav.appendChild(b)}
 }
 function renderDesk(){
   unwatch("desk");unwatch("master");
   const box=$("#strips");box.innerHTML="";
-  const L=LAYERS.find(l=>l.id===layer)||LAYERS[0];
+  if(P.musician){if(!target(P.musician)){P.musician=0;savePrefs()}else sendBus=P.musician}
+  const LL=musicianLayers(),L=LL.find(l=>l.id===layer)||LL[0]||LAYERS[0];layer=L.id;
   for(const id of L.ids())box.appendChild(groupOf(id)?makeGroupStrip("desk",groupOf(id)):makeStrip("desk",BY[id],{bus:sendBus}));
   if(layer==="grp"){const t=document.createElement("button");t.className="strip addtile";
     t.innerHTML=`<div><b>＋</b><br>Nuevo<br>grupo</div>`;t.onclick=()=>openGroupEditor(null);box.appendChild(t)}
   if(layer==="dca")box.appendChild(muteGroups());
-  if(layer==="custom"){const t=document.createElement("button");t.className="strip";
-    t.className="strip addtile";t.innerHTML=`<div><b>＋</b><br>Elegir<br>canales</div>`;
-    t.onclick=openLayerEditor;box.appendChild(t)}
+  if(layer.startsWith("v:")){const t=document.createElement("button");t.className="strip";const vid=layer.slice(2);t.onclick=()=>openLayerEditor(vid);
+    t.className="strip addtile";t.innerHTML=`<div><b>✎</b><br>Editar<br>capa</div>`;box.appendChild(t)}
   box.scrollLeft=0;
   if(sendBus&&!target(sendBus)){sendBus=0;store("sendBus",0)}
   const ms=sendBus?busStrip(sendBus):BY[MODEL.master];
@@ -201,7 +225,7 @@ function renderDesk(){
   watch("desk",[ms.id+".name",ms.id+".color"],()=>{
     $("#mixName").textContent=sendBus?`${ms.label} · ${nameOf(ms)}`:"Principal";
     sel.style.setProperty("--bus",sendBus?colorOf(ms):"var(--red)");
-    sel.querySelector("small").textContent=sendBus?"Mezcla de monitor":"Estás mezclando";
+    sel.querySelector("small").textContent=P.musician?"Modo músico · tu mezcla":sendBus?"Mezcla de monitor":"Estás mezclando";
   });
   renderMonRow();
 }
@@ -356,9 +380,9 @@ function transferGraph(cv,fn,thr,on,id){
   ctx.clearRect(0,0,w,hh);ctx.strokeStyle="#1d1d21";ctx.lineWidth=1;ctx.font="11px "+font();ctx.fillStyle="#55555c";
   for(let d=lo;d<=0;d+=10){ctx.beginPath();ctx.moveTo(px(d),0);ctx.lineTo(px(d),hh);ctx.moveTo(0,py(d));ctx.lineTo(w,py(d));ctx.stroke();if(d>lo)ctx.fillText(d,px(d)+3,hh-4)}
   ctx.strokeStyle="#2e2e34";ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(px(lo),py(lo));ctx.lineTo(px(0),py(0));ctx.stroke();ctx.setLineDash([]);
-  ctx.strokeStyle="rgba(227,16,28,.5)";ctx.beginPath();ctx.moveTo(px(thr),0);ctx.lineTo(px(thr),hh);ctx.stroke();
+  ctx.strokeStyle=`rgba(${ACCRGB()},.5)`;ctx.beginPath();ctx.moveTo(px(thr),0);ctx.lineTo(px(thr),hh);ctx.stroke();
   ctx.beginPath();for(let x=lo;x<=0;x+=.5){const y=fn(x);x===lo?ctx.moveTo(px(x),py(y)):ctx.lineTo(px(x),py(y))}
-  ctx.strokeStyle=on?"#e3101c":"#55555c";ctx.lineWidth=3;ctx.shadowColor="#e3101c";ctx.shadowBlur=on?10:0;ctx.stroke();ctx.shadowBlur=0;
+  ctx.strokeStyle=on?ACC():"#55555c";ctx.lineWidth=3;ctx.shadowColor=ACC();ctx.shadowBlur=on?10:0;ctx.stroke();ctx.shadowBlur=0;
   const lv=M[id]?.[0]||0,ldb=lv>0?20*Math.log10(lv):-100;
   if(status.meters&&ldb>lo){ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(px(ldb),py(fn(ldb)),6,0,7);ctx.fill()}
   ctx.fillStyle="#8b8b93";ctx.fillText("Umbral "+(+thr).toFixed(1)+" dB  ·  desliza el dedo sobre el gráfico para moverlo",10,16);
@@ -429,10 +453,10 @@ function drawEq(cv,s){
     ctx.strokeStyle=EQ_COL[i%EQ_COL.length]+(b===eqBand?"aa":"44");ctx.lineWidth=b===eqBand?1.6:1;ctx.stroke()});
   const pts=eqCurve(s,240);
   ctx.beginPath();ctx.moveTo(0,hh/2);pts.forEach(([x,d])=>ctx.lineTo(x*w,Y(d)));ctx.lineTo(w,hh/2);ctx.closePath();
-  const gr=ctx.createLinearGradient(0,0,0,hh);gr.addColorStop(0,on?"rgba(227,16,28,.35)":"rgba(120,120,130,.2)");gr.addColorStop(.5,"rgba(227,16,28,.04)");gr.addColorStop(1,on?"rgba(227,16,28,.35)":"rgba(120,120,130,.2)");
+  const gr=ctx.createLinearGradient(0,0,0,hh);gr.addColorStop(0,on?`rgba(${ACCRGB()},.35)`:"rgba(120,120,130,.2)");gr.addColorStop(.5,`rgba(${ACCRGB()},.04)`);gr.addColorStop(1,on?`rgba(${ACCRGB()},.35)`:"rgba(120,120,130,.2)");
   ctx.fillStyle=gr;ctx.fill();
   ctx.beginPath();pts.forEach(([x,d],k)=>k?ctx.lineTo(x*w,Y(d)):ctx.moveTo(x*w,Y(d)));
-  ctx.strokeStyle=on?"#ff2a36":"#6a6a72";ctx.lineWidth=3;ctx.shadowColor="#e3101c";ctx.shadowBlur=on?12:0;ctx.stroke();ctx.shadowBlur=0;
+  ctx.strokeStyle=on?ACC():"#6a6a72";ctx.lineWidth=3;ctx.shadowColor=ACC();ctx.shadowBlur=on?12:0;ctx.stroke();ctx.shadowBlur=0;
   s.eq.forEach((b,i)=>{const[x,y]=eqXY(s,b,w,hh),sel=b===eqBand,c=EQ_COL[i%EQ_COL.length];
     ctx.beginPath();ctx.arc(x,y,sel?16:13,0,7);ctx.fillStyle=sel?c:"#111";ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle=c;ctx.stroke();
     ctx.fillStyle=sel?"#000":"#fff";ctx.font="bold 12px "+font();ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(bandLetter(s,b),x,y+1);
@@ -536,7 +560,7 @@ function openMix(){
   for(const t of MODEL.targets){const s=BY[t.id];mk(t.n,s.label,S[s.id+".name"]||"—",colorOf(s))}
   openSheet("#mixSheet");
 }
-$("#mixSel").onclick=openMix;
+$("#mixSel").onclick=()=>P.musician?toast("Modo músico activo: se cambia en Ajustes → Modo músico"):openMix();
 
 function renderScenes(){
   const l=$("#sceneList");l.innerHTML="";
@@ -551,20 +575,28 @@ $("#scenesBtn").onclick=()=>{const r=$("#sceneRow");r.classList.toggle("show");$
 $("#sceneSave").onclick=()=>{send({t:"sceneSave",name:$("#sceneName").value});$("#sceneName").value="";toast("Mezcla guardada")};
 $("#setBtn").onclick=()=>openSettings();
 
-function openLayerEditor(){
+let vEd=null;
+function openLayerEditor(id){
+  if(id!==undefined){const v=layout.views.find(x=>x.id===id);vEd=v?{...v,ids:[...v.ids]}:{id:"v"+Date.now().toString(36),name:"",ids:[]};
+    $("#layerTitle").textContent=v?"Editar capa":"Nueva capa";$("#layerName").value=vEd.name;$("#layerDel").style.display=v?"":"none"}
   const box=$("#layerPick");box.innerHTML="";
   const groups=MODEL.layers.map(l=>[l.name==="1–16"?"Canales 1–16":l.name,l.ids.map(id=>BY[id])]).concat(
     [[MODEL.kind==="wing"?"":"Principal",[BY[MODEL.master]].filter(s=>!MODEL.layers.some(l=>l.ids.includes(s.id)))]]).filter(g=>g[1].length);
   if(layout.groups.length)groups.unshift(["Grupos",layout.groups.map(g=>({id:"g:"+g.id,label:g.n,grp:g}))]);
   for(const[t,list]of groups){box.appendChild(h("h3","sec",t));const g=h("div","pick");
     for(const s of list){const b=h("button","",esc(s.grp?s.grp.n:S[s.id+".name"]||s.label));b.style.setProperty("--c",s.grp?s.grp.c:colorOf(s));
-      const paint=()=>{const i=layout.custom.indexOf(s.id);b.classList.toggle("sel",i>=0);b.dataset.n=i>=0?i+1:""};paint();
-      b.onclick=()=>{const i=layout.custom.indexOf(s.id);i>=0?layout.custom.splice(i,1):layout.custom.push(s.id);box.querySelectorAll(".pick button").forEach(x=>x._paint());};b._paint=paint;g.appendChild(b)}
+      const paint=()=>{const i=vEd.ids.indexOf(s.id);b.classList.toggle("sel",i>=0);b.dataset.n=i>=0?i+1:""};paint();
+      b.onclick=()=>{const i=vEd.ids.indexOf(s.id);i>=0?vEd.ids.splice(i,1):vEd.ids.push(s.id);box.querySelectorAll(".pick button").forEach(x=>x._paint());};b._paint=paint;g.appendChild(b)}
     box.appendChild(g)}
   openSheet("#layerSheet");
 }
-$("#layerClear").onclick=()=>{layout.custom=[];openLayerEditor()};
-$("#layerDone").onclick=()=>{sendLayout();closeSheets();layer="custom";store("layer",layer);renderLayers();renderDesk()};
+$("#layerName").oninput=()=>{vEd.name=$("#layerName").value};
+$("#layerClear").onclick=()=>{vEd.ids=[];openLayerEditor()};
+$("#layerDone").onclick=()=>{vEd.name=vEd.name.trim()||`Capa ${layout.views.length+1}`;
+  const i=layout.views.findIndex(x=>x.id===vEd.id);i>=0?layout.views[i]=vEd:layout.views.push(vEd);
+  sendLayout();closeSheets();buildLayers();layer="v:"+vEd.id;store("layer",layer);renderLayers();renderDesk();toast("Capa guardada")};
+$("#layerDel").onclick=()=>{const b=$("#layerDel");if(!b.dataset.c){b.dataset.c=1;b.textContent="¿Seguro?";setTimeout(()=>{delete b.dataset.c;b.textContent="Borrar capa"},2500);return}
+  delete b.dataset.c;b.textContent="Borrar capa";layout.views=layout.views.filter(x=>x.id!==vEd.id);sendLayout();closeSheets();buildLayers();renderLayers();renderDesk();toast("Capa borrada")};
 
 $("#dClose").onclick=closeDetail;$("#dPrev").onclick=()=>stepDetail(-1);$("#dNext").onclick=()=>stepDetail(1);
 document.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT")return;
@@ -576,7 +608,7 @@ function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show"
 /* ================================================================ grupos propios (un fader para varios canales) */
 const GROUP_COLORS=["#e3101c","#ff8a1f","#f2c230","#2fbf5b","#1fc2d4","#2f7bf2","#b06ad8","#ff5fb0","#8b8b93"];
 const groupOf=id=>typeof id==="string"&&id.startsWith("g:")?layout.groups.find(g=>"g:"+g.id===id):null;
-function sendLayout(){send({t:"layout",v:{custom:layout.custom,groups:layout.groups}})}
+function sendLayout(){send({t:"layout",v:{views:layout.views,groups:layout.groups}})}
 const mixKey=()=>sendBus?"b"+sendBus:"main";
 function makeGroupStrip(scope,g){
   const el=document.createElement("div");el.className="strip group";el.style.setProperty("--c",g.c);el.dataset.id="g:"+g.id;
@@ -631,16 +663,16 @@ $("#grpSave").onclick=()=>{
   if(!gEd.m.length){toast("Elige al menos un canal");return}
   const i=layout.groups.findIndex(x=>x.id===gEd.id);
   if(i>=0)layout.groups[i]={...layout.groups[i],n:gEd.n,c:gEd.c,m:gEd.m};
-  else{layout.groups.push(gEd);if(!layout.custom.includes("g:"+gEd.id))layout.custom.unshift("g:"+gEd.id)}
+  else layout.groups.push(gEd);
   sendLayout();closeSheets();buildLayers();renderLayers();renderDesk();toast("Grupo guardado")};
 $("#grpDel").onclick=()=>{const b=$("#grpDel");if(!b.dataset.c){b.dataset.c=1;b.textContent="¿Seguro?";setTimeout(()=>{delete b.dataset.c;b.textContent="Eliminar grupo"},2500);return}
   delete b.dataset.c;b.textContent="Eliminar grupo";
-  layout.groups=layout.groups.filter(x=>x.id!==gEd.id);layout.custom=layout.custom.filter(x=>x!=="g:"+gEd.id);
+  layout.groups=layout.groups.filter(x=>x.id!==gEd.id);layout.views.forEach(v=>v.ids=v.ids.filter(x=>x!=="g:"+gEd.id));
   sendLayout();closeSheets();buildLayers();renderLayers();renderDesk();toast("Grupo eliminado")};
 
 /* ================================================================ filas rápidas: monitores y escenas */
 function renderMonRow(){
-  const r=$("#monRow");r.classList.toggle("show",!!sendBus);if(!sendBus)return;r.innerHTML="";
+  const r=$("#monRow");r.classList.toggle("show",!!sendBus&&!P.musician);if(!sendBus||P.musician)return;r.innerHTML="";
   const mk=(n,label,sub,c)=>{const b=h("button","chip",`${esc(label)}<small>${esc(sub)}</small>`);b.style.setProperty("--c",c);b.classList.toggle("sel",n===sendBus);
     b.onclick=()=>{sendBus=n;store("sendBus",n);renderDesk()};r.appendChild(b)};
   mk(0,"Principal","Volver a la mezcla del público","var(--red)");
@@ -663,8 +695,8 @@ $("#lockBtn").onclick=()=>{locked=!locked;document.body.classList.toggle("locked
 
 /* ================================================================ ajustes */
 const sidePanel=()=>load("panel",innerWidth>=1000?"lateral":"completa")==="lateral"&&innerWidth>=900;
-let wake=null,setSec="vista";
-const SECTIONS=[["vista","Mi vista"],["grupos","Grupos"],["links","Canales enlazados"],["pantalla","Pantalla"],["ayuda","Ayuda"],["datos","Datos"]];
+let wake=null,setSec="perso";
+const SECTIONS=[["perso","Personalizar"],["musico","Modo músico"],["vista","Mis capas"],["grupos","Grupos"],["links","Canales enlazados"],["pantalla","Pantalla"],["ayuda","Ayuda"],["datos","Datos"]];
 function openSettings(sec){if(sec)setSec=sec;paintSettings();openSheet("#setSheet")}
 function paintSettings(){
   const nav=$("#setNav");nav.innerHTML="<h2>Ajustes</h2>";
@@ -672,10 +704,39 @@ function paintSettings(){
   const c=$("#setBody");c.innerHTML="";
   const sw=(label,sub,on,fn)=>{const r=h("div","setrow",`<div><b>${label}</b><small>${sub}</small></div>`);const b=h("button","switch mini"+(on?" on":""),"<i></i>");b.onclick=fn;r.appendChild(b);return r};
   const act=(label,fn,cls="btn red")=>{const b=h("button",cls,label);b.onclick=fn;return b};
-  if(setSec==="vista"){
-    c.appendChild(h("h3","","Mi vista"));c.appendChild(h("p","sub","Tu capa personal: los canales y grupos que quieres tener a mano, en el orden que elijas."));
-    c.appendChild(h("p","",`<b>Ahora:</b> ${esc(layout.custom.map(id=>groupOf(id)?groupOf(id).n+" (grupo)":BY[id]?nameOf(BY[id]):"").filter(Boolean).join(", ")||"vacía")}`));
-    c.appendChild(act("Elegir canales y grupos",()=>{closeSheets();openLayerEditor()}));
+  if(setSec==="perso"){
+    c.appendChild(h("h3","","Personalizar"));c.appendChild(h("p","sub","Elige cómo se ve y cómo responde la mesa en este iPad. Cada iPad puede tenerlo a su gusto."));
+    const seg=(label,sub,opts,cur,fn)=>{const r=h("div","setrow",`<div><b>${label}</b><small>${sub}</small></div>`);const g=h("div","segbar");
+      for(const[v,t]of opts){const b=h("button",v===cur?"sel":"",t);b.onclick=()=>{fn(v);paintSettings()};g.appendChild(b)}r.appendChild(g);return r};
+    c.appendChild(seg("Faders a la vista","Cuántas tiras caben en pantalla a la vez.",[[0,"Auto"],[8,"8"],[12,"12"],[16,"16"]],P.cols,v=>{P.cols=v;savePrefs()}));
+    c.appendChild(h("h3","sec","Qué se ve en cada tira"));
+    for(const[k,t,sub]of[["proc","Mini ecualizador y procesado","El dibujo del EQ y las marcas P · C · EQ."],["pan","Panorama","La barrita de izquierda / derecha."],
+      ["solo","Botón SOLO",""],["scale","Escala de dB","Los números junto al fader."],["meter","Vúmetro",""]])
+      c.appendChild(sw(t,sub,!!P[k],()=>{P[k]=P[k]?0:1;savePrefs();paintSettings()}));
+    c.appendChild(sw("Nombres grandes","Letra más grande en los nombres de los canales.",!!P.big,()=>{P.big=P.big?0:1;savePrefs();paintSettings()}));
+    c.appendChild(h("h3","sec","Faders"));
+    c.appendChild(sw("Doble toque = 0 dB","Al tocar dos veces un fader vuelve a 0 dB.",!!P.dbl,()=>{P.dbl=P.dbl?0:1;savePrefs();paintSettings()}));
+    c.appendChild(sw("Modo fino","Los faders se mueven más despacio para ajustes de precisión.",!!P.fine,()=>{P.fine=P.fine?0:1;savePrefs();paintSettings()}));
+    c.appendChild(h("h3","sec","Color de acento"));
+    const ac=h("div","accents");for(const[k,a]of Object.entries(ACCENTS)){const b=h("button",k===P.accent?"sel":"",`<i style="background:${a[1]}"></i>${a[0]}`);
+      b.onclick=()=>{P.accent=k;savePrefs();paintSettings()};ac.appendChild(b)}c.appendChild(ac);
+    c.appendChild(act("Volver a lo de fábrica",()=>{const m=P.musician;P=Object.assign({},PDEF,{musician:m});savePrefs();renderDesk();paintSettings()},"btn"));
+  }else if(setSec==="musico"){
+    c.appendChild(h("h3","","Modo músico"));
+    c.appendChild(h("p","sub","Convierte este iPad en el control de monitor de un músico: solo ve su mezcla y solo puede subir y bajar lo que le llega. No puede tocar la mezcla principal, el procesado ni la conexión."));
+    const l=h("div","list");
+    const it0=h("div","item",`<span>Desactivado<small>Control completo de la mesa</small></span>`);const b0=h("button","switch mini"+(P.musician?"":" on"),"<i></i>");
+    b0.onclick=()=>{P.musician=0;savePrefs();sendBus=0;store("sendBus",0);buildLayers();renderLayers();renderDesk();paintSettings()};it0.appendChild(b0);l.appendChild(it0);
+    for(const t of MODEL.targets){const bs=BY[t.id];const it=h("div","item",`<span><i class="dot" style="background:${colorOf(bs)}"></i>${esc(nameOf(bs))}<small>${esc(bs.label)}</small></span>`);
+      const b=h("button","switch mini"+(P.musician===t.n?" on":""),"<i></i>");
+      b.onclick=()=>{P.musician=t.n;savePrefs();sendBus=t.n;store("sendBus",t.n);renderLayers();renderDesk();paintSettings();toast(`Modo músico: ${nameOf(bs)}`)};it.appendChild(b);l.appendChild(it)}
+    c.appendChild(l);
+  }else if(setSec==="vista"){
+    c.appendChild(h("h3","","Mis capas"));c.appendChild(h("p","sub","Capas con nombre propio (por ejemplo «Batería», «Voces», «Mi monitor») con los canales y grupos que quieras, en el orden que elijas. Aparecen arriba, junto a las demás."));
+    const l=h("div","list");if(!layout.views.length)l.appendChild(h("div","empty","Todavía no has creado ninguna capa."));
+    for(const v of layout.views){const it=h("div","item",`<span>${esc(v.name)}<small>${esc(v.ids.map(id=>groupOf(id)?groupOf(id).n+" (grupo)":BY[id]?nameOf(BY[id]):"").filter(Boolean).join(", ")||"vacía")}</small></span>`);
+      it.appendChild(act("Editar",()=>{closeSheets();openLayerEditor(v.id)},"btn small"));l.appendChild(it)}
+    c.appendChild(l);c.appendChild(act("＋ Nueva capa",()=>{closeSheets();openLayerEditor(null)}));
   }else if(setSec==="grupos"){
     c.appendChild(h("h3","","Grupos"));c.appendChild(h("p","sub","Un fader que sube y baja varios canales a la vez manteniendo la mezcla entre ellos. Funciona en la mezcla principal y en cada monitor."));
     const l=h("div","list");if(!layout.groups.length)l.appendChild(h("div","empty","Todavía no hay grupos."));
@@ -719,7 +780,7 @@ function connectWs(){
       case"upd":{const ch=[];for(const p in m.v)if(!active.has(p)){S[p]=m.v[p];ch.push(p)}notify(ch);break}
       case"state":S=m.v;notifyAll();break;
       case"model":{const was=MODEL.kind;MODEL=m;STRIPS=m.strips;SPEC=m.spec;BY={};STRIPS.forEach(s=>BY[s.id]=s);
-        layout={custom:[],groups:[],links:[]};buildLayers();if(was&&was!==m.kind){closeDetail();closeSheets();sendBus=0;store("sendBus",0)}
+        layout={custom:[],groups:[],links:[],views:[]};buildLayers();if(was&&was!==m.kind){closeDetail();closeSheets();sendBus=0;store("sendBus",0)}
         if(status.t){renderLayers();renderDesk()}break}
       case"status":{const first=!status.t;status=m;const d=$("#connDot");d.className="conn-dot"+(m.mode==="demo"?" demo":m.connected?" on":"");
         document.body.classList.toggle("nometers",!m.meters);if(!m.meters)M={};
@@ -735,12 +796,15 @@ function connectWs(){
         m.v.forEach(x=>{const b=h("button","",`${esc(x.name)} <small>${esc(x.model)} · ${esc(x.ip)}</small>`);
           b.onclick=()=>{connCard=x.kind==="xair"?"xr18":(connCard==="wing"?"wing":"rack");connDemo=false;paintConn();$("#ip").value=x.ip;$("#ip").dataset.edited=1};f.appendChild(b)});break}
       case"scenes":scenes=m.v;renderScenes();renderSceneRow();break;
-      case"layout":{layout=Object.assign({custom:[],groups:[],links:[]},m.v||{});for(const k of["custom","groups","links"])if(!Array.isArray(layout[k]))layout[k]=[];
+      case"layout":{layout=Object.assign({custom:[],groups:[],links:[],views:[]},m.v||{});for(const k of["custom","groups","links","views"])if(!Array.isArray(layout[k]))layout[k]=[];
+        if(!layout.views.length&&layout.custom.length)layout.views=[{id:"v1",name:"Mi vista",ids:layout.custom}];
+        layout.views.forEach(v=>{v.ids=(v.ids||[]).filter(id=>BY[id]||id.startsWith("g:"))});
         layout.groups.forEach(g=>{g.niv=g.niv||{};g.m=(g.m||[]).filter(id=>BY[id])});layout.custom=layout.custom.filter(id=>BY[id]||groupOf(id));
         buildLayers();if(status.t){renderLayers();renderDesk();if(detailId&&detailTab==="cfg")renderPane(BY[detailId])}break}
     }};
   ws.onclose=()=>{ws=null;$("#connDot").className="conn-dot";if(wsTries++>1)toast("Sin conexión con el ordenador de MBMix. Reintentando…");setTimeout(connectWs,Math.min(5000,500*wsTries))};
 }
 window.addEventListener("resize",()=>notifyAll());
+applyPrefs();
 requestAnimationFrame(meterLoop);
 connectWs();

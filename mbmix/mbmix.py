@@ -901,7 +901,7 @@ class Hub:
         elif t == "layout":
             v = msg.get("v") if isinstance(msg.get("v"), dict) else {}
             cur = self.cfg["layouts"].setdefault(m.kind, {})
-            for k in ("custom", "groups"):
+            for k in ("custom", "groups", "views"):
                 if isinstance(v.get(k), list):
                     cur[k] = v[k]
             self.save()
