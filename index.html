@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MBMix">
+<meta name="theme-color" content="#050505">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>MBMix</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <img class="logo" src="logo.png" alt="MB Soundtools">
+  <div class="title"><b>MBMix</b><small>MB SOUNDTOOLS</small></div>
+  <nav class="layers" id="layers"></nav>
+  <button class="mixsel" id="mixSel" title="Elegir qué mezcla controlan los faders"><small>Estás mezclando</small><span id="mixName">Principal</span></button>
+  <button class="tbtn" id="scenesBtn" title="Guardar y cargar mezclas"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg><small>Mezclas</small></button>
+  <button class="tbtn" id="connBtn" title="Conectar la mesa"><svg viewBox="0 0 24 24"><path d="M4 19V9M9 19V5M14 19v-7M19 19V3"/></svg><small id="connState">Mesa</small><span class="conn-dot" id="connDot"></span></button>
+  <button class="tbtn" id="setBtn" title="Ajustes y ayuda"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><small>Ajustes</small></button>
+  <button class="tbtn" id="fsBtn" title="Pantalla completa"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><small>Pantalla</small></button>
+  <button class="tbtn inst" id="instBtn" title="Poner MBMix en la pantalla de inicio" hidden><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><small>Instalar</small></button>
+  <button class="tbtn lock" id="lockBtn" title="Bloquear los controles para no tocar nada sin querer"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><small>Bloquear</small></button>
+</header>
+
+<nav class="qrow" id="monRow" aria-label="Mezclas de monitor"></nav>
+<nav class="qrow" id="sceneRow" aria-label="Mezclas guardadas"></nav>
+
+<section class="desk">
+  <div class="strips" id="strips"></div>
+  <div class="master" id="master"></div>
+</section>
+
+<!-- vista de canal -->
+<section class="detail" id="detail">
+  <div class="dtop">
+    <button class="tbtn back" id="dClose" title="Volver a la mesa"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><small>Mesa</small></button>
+    <div class="dname" id="dName"></div>
+    <nav class="tabs" id="dTabs"></nav>
+    <button class="tbtn" id="dPrev" title="Canal anterior"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><small>Anterior</small></button>
+    <button class="tbtn" id="dNext" title="Canal siguiente"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg><small>Siguiente</small></button>
+  </div>
+  <div class="dbody"><div class="strip" id="dStrip"></div><div class="pane" id="dPane"></div></div>
+</section>
+
+<!-- conexión -->
+<section class="sheet" id="connSheet">
+  <div class="card">
+    <button class="close" data-close>✕</button>
+    <h2>Conectar mesa</h2>
+    <p class="sub" id="connInfo">Elige tu mesa. Con «Demo» puedes probarlo todo sin mesa.</p>
+    <h3>1 · ¿Qué mesa tienes?</h3>
+    <div class="models three" id="models">
+      <button class="model" data-card="rack"><b>WING Rack</b><small>Behringer WING Rack</small></button>
+      <button class="model" data-card="wing"><b>WING</b><small>WING completa o WING Compact</small></button>
+      <button class="model" data-card="xr18"><b>XR18</b><small>X Air XR18 (también XR16, XR12 y Midas MR18)</small></button>
+    </div>
+    <button class="switch" id="demoSw"><i></i><span><b>Probar sin mesa (demo)</b><small>Mesa simulada con sonido de ejemplo, para practicar.</small></span></button>
+    <div id="ipBox">
+      <h3>2 · Dirección IP de la mesa</h3>
+      <div class="row"><input class="field" id="ip" inputmode="decimal" placeholder="Ejemplo: 192.168.1.62" autocomplete="off"><button class="btn" id="findBtn">Buscar mesa</button></div>
+      <p class="hint" style="margin-top:8px">La IP la ves en la WING en <b>Setup → Network</b>; en la XR18, en la app X Air o en tu router. O pulsa «Buscar mesa».</p>
+      <div class="found" id="found"></div>
+    </div>
+    <div class="row" style="margin-top:18px"><button class="btn red" id="connectBtn" style="flex:1;height:54px;font-size:17px">Conectar</button></div>
+    <div class="netmap" aria-label="Esquema de conexión">
+      <div class="node"><b>iPad</b><small>Safari</small></div><div class="link" id="nl1"><span>Wi-Fi</span></div>
+      <div class="node pc"><b>Ordenador</b><small>MBMix</small></div><div class="link pc" id="nl2"><span>Red / cable</span></div>
+      <div class="node"><b id="nodeMixer">Mesa</b><small id="nodeIp">sin IP</small></div>
+    </div>
+    <p class="hint" id="lanHint">Para usarlo en el iPad: conecta el iPad al mismo Wi-Fi que este ordenador y abre en Safari<br><code id="lanUrl">—</code><br>
+      Después, en Safari: Compartir → «Añadir a pantalla de inicio» para abrirlo a pantalla completa como una app.</p>
+  </div>
+</section>
+
+<!-- escenas -->
+<section class="sheet" id="sceneSheet">
+  <div class="card">
+    <button class="close" data-close>✕</button>
+    <h2>Mezclas guardadas</h2>
+    <p class="sub">Guarda cómo está todo ahora (volúmenes, mutes, ecualizadores, envíos, nombres…) para recuperarlo con un toque, por ejemplo una por canción o por bolo.</p>
+    <div class="row"><input class="field" id="sceneName" placeholder="Nombre (ej.: Bolo sala Apolo)" maxlength="40"><button class="btn red" id="sceneSave">Guardar ahora</button></div>
+    <h3>Tus mezclas</h3>
+    <div class="list" id="sceneList"></div>
+  </div>
+</section>
+
+<!-- elegir mezcla (sends on fader) -->
+<section class="sheet" id="mixSheet">
+  <div class="card" style="width:min(720px,94vw)">
+    <button class="close" data-close>✕</button>
+    <h2>¿Qué mezcla quieres hacer?</h2>
+    <p class="sub"><b>Principal</b>: lo que suena por el PA. <b>Un bus</b>: la mezcla de un monitor o unos cascos; los faders pasan a controlar cuánto de cada canal le llega a ese músico.</p>
+    <div class="mixlist" id="mixList"></div>
+  </div>
+</section>
+
+<!-- editar capa propia -->
+<section class="sheet" id="layerSheet">
+  <div class="card" style="width:min(820px,96vw)">
+    <button class="close" data-close>✕</button>
+    <h2 id="layerTitle">Nueva capa</h2>
+    <p class="sub">Ponle un nombre y toca los canales que quieres tener juntos, en el orden en que quieres verlos. Vuelve a tocar para quitarlos.</p>
+    <input class="field" id="layerName" maxlength="16" placeholder="Nombre (ej.: Batería, Voces, Mi monitor)" style="max-width:420px;margin-bottom:6px">
+    <div id="layerPick"></div>
+    <div class="row" style="margin-top:16px"><button class="btn danger" id="layerDel">Borrar capa</button><button class="btn" id="layerClear">Quitar todos</button><span style="flex:1"></span><button class="btn red" id="layerDone">Hecho</button></div>
+  </div>
+</section>
+
+<!-- ayuda -->
+<section class="sheet" id="helpSheet">
+  <div class="card" style="width:min(720px,94vw)">
+    <button class="close" data-close>✕</button>
+    <h2>Cómo se usa</h2>
+    <ul class="help" id="helpList">
+      <li><b>Arriba</b> eliges qué canales ves (cambia según tu mesa: WING o XR18) o «Mi vista», con los canales que tú elijas.</li>
+      <li><b>Fader</b>: arrastra arriba o abajo. Toca dos veces para dejarlo en 0 dB.</li>
+      <li><b>MUTE</b> silencia el canal. <b>SOLO</b> lo escuchas tú solo por los cascos.</li>
+      <li><b>Toca el nombre</b> de un canal para ajustar su entrada, puerta, compresor, ecualizador, envíos, nombre y color.</li>
+      <li><b>Mandos redondos</b>: arrastra el dedo arriba o abajo. Doble toque = valor de fábrica.</li>
+      <li><b>«Estás mezclando»</b>: cambia a un bus para hacer la mezcla de monitor de un músico.</li>
+      <li><b>Mezclas</b>: abre una fila con tus mezclas guardadas; toca dos veces una para cargarla.</li>
+      <li><b>Grupos</b>: un fader que mueve varios canales a la vez sin cambiar la mezcla entre ellos.</li>
+      <li><b>Bloquear</b>: el candado congela todos los controles para que nada se mueva sin querer en el bolo.</li>
+      <li>Puedes usar varios iPads a la vez: todos se ven igual y a la vez que la mesa.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- grupo -->
+<section class="sheet" id="groupSheet">
+  <div class="card" style="width:min(820px,96vw)">
+    <button class="close" data-close>✕</button>
+    <h2 id="grpTitle">Nuevo grupo</h2>
+    <p class="sub">Un solo fader que sube y baja todos los canales que elijas, manteniendo la mezcla entre ellos.</p>
+    <input class="field" id="grpName" maxlength="14" placeholder="Nombre (ej.: Batería, Coros, Guitarras)" style="max-width:420px">
+    <h3>Color</h3><div class="gcolors" id="grpColors"></div>
+    <div id="grpPick"></div>
+    <div class="row" style="margin-top:16px"><button class="btn danger" id="grpDel">Eliminar grupo</button><span style="flex:1"></span><button class="btn red" id="grpSave">Guardar grupo</button></div>
+  </div>
+</section>
+
+<!-- envíos de un grupo -->
+<section class="sheet" id="groupSendsSheet">
+  <div class="card" style="width:min(760px,96vw)">
+    <button class="close" data-close>✕</button>
+    <h2 class="gtitle" id="gsTitle">Grupo</h2>
+    <p class="sub">Cuánto llega de este grupo a cada monitor. Cada barra sube o baja a la vez los envíos de todos sus canales, sin cambiar el balance entre ellos.<br><small id="gsMembers"></small></p>
+    <div class="sends" id="gsList"></div>
+    <div class="row" style="margin-top:16px"><span style="flex:1"></span><button class="btn" id="gsEdit">Editar grupo (nombre, color, canales)</button></div>
+  </div>
+</section>
+
+<!-- ajustes -->
+<section class="sheet" id="setSheet">
+  <div class="card settings">
+    <nav class="setnav" id="setNav"></nav>
+    <div class="setbody"><button class="close" data-close>✕</button><div id="setBody"></div></div>
+  </div>
+</section>
+
+<!-- instalar en el iPad -->
+<section class="sheet" id="installSheet">
+  <div class="card" style="width:min(640px,94vw)">
+    <button class="close" data-close>✕</button>
+    <h2>Instalar MBMix</h2>
+    <div id="instBody"></div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+<script>/* app de Android: mismo puente que la del iPad */
+if(window.MBAndroid&&!window.webkit){window.webkit={messageHandlers:{mbmix:{postMessage:function(o){MBAndroid.post(JSON.stringify(o))}}}};
+  try{window.MBNativeStore=JSON.parse(MBAndroid.store())}catch(e){window.MBNativeStore={}}}</script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
