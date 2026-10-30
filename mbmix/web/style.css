@@ -437,3 +437,43 @@ body.zoomed{transform-origin:0 0}
 .steps .ico{width:44px;height:44px;flex:none;border-radius:12px;background:var(--btn);border:1px solid var(--edge);display:flex;align-items:center;justify-content:center}
 .steps .ico svg{width:24px;height:24px;stroke:var(--red);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .steps b{display:block;font-size:16px} .steps small{display:block;color:var(--muted);font-size:13px;margin-top:2px;line-height:1.35}
+
+/* ------------------------------------------------ móvil (Android / iPhone) */
+/* móvil en horizontal: barra fina, tiras compactas y el fader con todo el alto posible */
+@media (max-height:500px){
+  :root{--top:50px}
+  .top,.dtop{margin:4px 4px 0;gap:5px;padding:0 6px 0 10px}
+  .logo{height:32px} .title{display:none}
+  .layers{padding:3px} .layers button{height:34px;min-width:48px;padding:0 8px;font-size:13px}
+  .mixsel{height:40px;min-width:96px;max-width:150px} .mixsel small{display:none} .mixsel::after{top:10px}
+  .tbtn{height:40px;min-width:40px;padding:0 6px} .tbtn small{display:none} .tbtn svg{width:20px;height:20px}
+  .desk{padding:4px;gap:4px} .strips{grid-auto-columns:minmax(54px,92px);gap:3px} .master{width:68px}
+  .strip{gap:3px;padding:3px}
+  .scribble{height:38px} .scribble::before{height:4px} .scribble .num{display:none} .scribble .nm{font-size:11px}
+  .proc{display:none} .pan{height:18px} .mute{height:30px;font-size:11px} .solo{height:26px;font-size:11px}
+  .mute svg{display:none} .fader{min-height:80px} .fader-cap{height:34px;margin-top:-17px} .db{height:18px;font-size:11px}
+  .dname{min-width:0;flex:none;max-width:150px} .dname b{font-size:16px;overflow:hidden;text-overflow:ellipsis} .dname i{height:26px;width:10px}
+  .tabs{padding:3px} .tabs button{height:34px;padding:0 9px;font-size:13px}
+  .dbody{padding:4px;gap:4px} .dbody>#dStrip{display:none} .pane{padding:10px;gap:8px}
+  .phead h3{font-size:16px} .pane .sub,.phead p{display:none}
+  .kn{width:84px;padding:5px 2px 4px} .kn svg{width:56px;height:56px} .kn b{font-size:13px}
+  .graph{min-height:150px} .qrow{margin:4px 4px 0;padding:4px}
+}
+/* móvil en vertical: la barra se parte en dos filas y caben unas 5 tiras */
+@media (max-width:600px){
+  .top{height:auto;flex-wrap:wrap;padding:6px 6px 6px 10px;gap:5px;margin:4px 4px 0}
+  .logo{height:30px} .title{display:none}
+  .layers{order:9;flex:1 0 100%} .layers button{height:34px;min-width:48px;font-size:13px}
+  .mixsel{height:40px;min-width:88px;flex:1;max-width:none} .mixsel small{display:none} .mixsel::after{top:10px}
+  .tbtn{height:40px;min-width:36px;flex:1 1 36px;max-width:48px;padding:0 4px} .tbtn small{display:none} .tbtn svg{width:20px;height:20px}
+  .desk{padding:4px;gap:4px} .strips{grid-auto-columns:minmax(58px,1fr);gap:3px} .master{width:70px}
+  .strip{padding:3px;gap:4px} .scribble .nm{font-size:11px}
+  .dtop{height:auto;flex-wrap:wrap;padding:6px;gap:5px;margin:4px 4px 0}
+  .dname{flex:1;min-width:0} .dname b{font-size:18px;overflow:hidden;text-overflow:ellipsis}
+  .tabs{order:9;flex:1 0 100%} .tabs button{height:36px;padding:0 10px;font-size:14px}
+  .dbody{padding:4px;gap:4px} .dbody>#dStrip{width:64px} .pane{padding:10px}
+  .kn{width:90px} .kn svg{width:62px;height:62px}
+  .sends,#groupSendsSheet .sends{grid-template-columns:1fr}
+  .send{grid-template-columns:90px minmax(0,1fr) 50px 48px} .send.noon{grid-template-columns:90px minmax(0,1fr) 50px}
+  .mixlist{grid-template-columns:repeat(2,1fr)} .pick{grid-template-columns:repeat(4,1fr)} .colors{grid-template-columns:repeat(5,1fr)}
+}

@@ -1,0 +1,29 @@
+// MB Soundtools · MBMix para Android: la interfaz y el motor son los archivos web de MBMix (carpeta mbmix/web)
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.mbsoundtools.mbmix'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.mbsoundtools.mbmix'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    sourceSets {
+        main {
+            // se empaqueta la carpeta mbmix/web como assets/web
+            assets.srcDirs = ['../../mbmix']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

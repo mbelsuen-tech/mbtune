@@ -4,3 +4,5 @@ dist/
 build/
 ios/build/
 ios/*.xcodeproj/
+android/.gradle/
+android/local.properties

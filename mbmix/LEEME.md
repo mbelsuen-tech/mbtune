@@ -23,6 +23,13 @@ GitHub Actions («Compilar MBMix», artefacto **MBMix-iPad**) genera:
 
 La primera vez el iPad pide permiso de «Red local»: hay que aceptarlo para que encuentre la mesa.
 
+## App para Android (móvil y tableta, sin ordenador)
+La carpeta `android/` contiene la app de Android: la misma interfaz y el mismo motor, hablando con la mesa
+por la Wi-Fi del teléfono. GitHub Actions genera **MBMix-Android** → `MBMix-Android.apk`.
+Para instalarla: copia el `.apk` al móvil, ábrelo y acepta «Instalar apps de origen desconocido».
+En el móvil la pantalla se adapta sola: en horizontal se ven unas 14 tiras, en vertical unas 5.
+También se puede usar sin instalar nada: abre la web de MBMix en Chrome y pulsa «Instalar».
+
 ## Instalar (versión con ordenador)
 1. **En el ordenador** (el que va conectado a la mesa por cable o a su red):
    - Windows: descarga `MBMix.exe` (GitHub → Actions → «Compilar MBMix» → Artifacts) y ábrelo.

@@ -800,6 +800,9 @@ if("serviceWorker"in navigator&&location.protocol==="https:"&&!isNativeApp()&&!w
 if(!isInstalled()&&!isNativeApp()&&!window.MBMIX_ARTIFACT&&isIOS()&&!load("instSeen","")){
   const ask=()=>{if(document.querySelector(".sheet.show")){setTimeout(ask,1500);return}store("instSeen",1);openInstall()};setTimeout(ask,1500)}
 
+/* botón «atrás» de Android: cierra lo abierto antes de salir */
+window.MBBack=()=>{if(document.querySelector(".sheet.show")){closeSheets();return true}if(detailId){closeDetail();return true}return false};
+
 /* ================================================================ bloqueo */
 $("#lockBtn").onclick=()=>{locked=!locked;document.body.classList.toggle("locked",locked);$("#lockBtn").classList.toggle("on",locked);
   $("#lockBtn small").textContent=locked?"Bloqueado":"Bloquear";toast(locked?"Controles bloqueados: toca el candado para desbloquear":"Controles desbloqueados")};

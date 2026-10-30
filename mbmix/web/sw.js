@@ -1,5 +1,5 @@
 /* MBMix: guarda la app en el iPad para que abra sin internet (y se actualice sola cuando lo haya) */
-const CACHE = "mbmix-v3";
+const CACHE = "mbmix-v4";
 const FILES = ["./", "index.html", "style.css", "app.js", "engine.js", "logo.png", "icon-180.png", "icon-192.png", "icon-512.png", "manifest.webmanifest"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => {
